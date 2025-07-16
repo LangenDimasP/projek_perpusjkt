@@ -1,0 +1,14 @@
+# Folder dependencies
+/node_modules
+
+# File sensitif (jangan upload password atau konfigurasi rahasia)
+.env
+
+# File log
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+
+# File sistem operasi
+.DS_Store
+Thumbs.db

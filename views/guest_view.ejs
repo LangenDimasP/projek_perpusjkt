@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lihat Jadwal Petugas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        html {
+            scroll-behavior: smooth; /* Membuat scroll menjadi lebih halus */
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f3f4f6;
+        }
+        .table-container {
+            max-width: 95%;
+            margin: 2rem auto;
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+        }
+        .highlight {
+            background-color: #fef08a !important; /* Warna kuning stabilo */
+            transition: background-color 0.5s ease;
+        }
+        .personnel-row {
+            transition: background-color 0.5s ease;
+        }
+        th, td {
+            border: 1px solid #e5e7eb;
+        }
+        table {
+            border-collapse: collapse;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="table-container">
+        <div class="p-6 bg-white border-b border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-800">Jadwal Petugas</h1>
+            <p class="text-gray-600">Menampilkan jadwal untuk periode: <strong><%= new Date(dates[0]).toLocaleDateString('id-ID', {day: '2-digit', month: 'long', year: 'numeric'}) %> - <%= new Date(dates[dates.length - 1]).toLocaleDateString('id-ID', {day: '2-digit', month: 'long', year: 'numeric'}) %></strong></p>
+        </div>
+
+        <div class="p-4 flex flex-col sm:flex-row justify-between items-center bg-gray-50 border-b border-gray-200 gap-4">
+            <a href="<%= navLinks.prev %>" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition flex items-center shadow-sm w-full sm:w-auto justify-center">
+                <i class="fas fa-arrow-left mr-2"></i> Minggu Sebelumnya
+            </a>
+            
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <form id="searchForm" class="flex items-center gap-2 flex-grow">
+                    <div class="relative flex-grow">
+                        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" id="searchInput" class="w-full pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Cari & temukan nama...">
+                    </div>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition flex items-center shadow-sm">
+                        <i class="fas fa-bullseye mr-2"></i> Cari
+                    </button>
+                </form>
+                <button id="shareButton" title="Salin Link" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition flex items-center shadow-sm">
+                    <i class="fas fa-share-alt mr-2"></i>
+                    <span id="shareButtonText">Bagikan</span>
+                </button>
+            </div>
+
+            <a href="<%= navLinks.next %>" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition flex items-center shadow-sm w-full sm:w-auto justify-center">
+                Minggu Berikutnya <i class="fas fa-arrow-right ml-2"></i>
+            </a>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="p-3 text-xs font-semibold uppercase text-gray-600 w-8">No.</th>
+                        <th class="p-3 text-xs font-semibold uppercase text-gray-600 text-left w-56">Nama</th>
+                        <% dates.forEach(date => { %>
+                            <th class="p-2 text-center text-xs font-semibold uppercase text-gray-600">
+                                <div><%= new Date(date).toLocaleDateString('id-ID', { weekday: 'long' }) %></div>
+                                <div class="font-normal text-gray-500"><%= new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) %></div>
+                            </th>
+                        <% }) %>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% Object.keys(pivotData).sort().forEach(posisi => { %>
+                        <tr class="bg-indigo-50 font-bold text-indigo-800">
+                            <td colspan="<%= dates.length + 2 %>" class="p-2 px-4"><%= posisi %></td>
+                        </tr>
+                        <% pivotData[posisi].forEach((p, index) => { %>
+                            <tr class="personnel-row border-b hover:bg-gray-50">
+                                <td class="p-2 text-center text-gray-600"><%= index + 1 %></td>
+                                <td class="p-2 px-4 font-medium text-gray-900 whitespace-nowrap personnel-name"><%= p.nama_lengkap %></td>
+                                
+                                <% dates.forEach(date => { %>
+                                    <% const cellValue = p.jadwal[date]; %>
+                                    <% let bgColor = 'bg-white'; %>
+                                    <% let textColor = 'text-gray-900'; %>
+                                    <% let content = cellValue; %>
+
+                                    <% if (cellValue === 'Cuti' || cellValue === 'Libur' || cellValue === 'Sakit' || cellValue === 'Izin') {
+                                        bgColor = 'bg-gray-300';
+                                        textColor = 'text-gray-700 font-medium';
+                                    } else if (cellValue === null) {
+                                        bgColor = 'bg-red-500';
+                                        content = '';
+                                    } else if (cellValue) {
+                                        textColor = 'font-semibold';
+                                    } %>
+
+                                    <td class="p-2 text-center <%= bgColor %> <%= textColor %>">
+                                        <%= content %>
+                                    </td>
+                                <% }) %>
+                            </tr>
+                        <% }) %>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Logika untuk Search & Scroll ---
+            const searchForm = document.getElementById('searchForm');
+            const searchInput = document.getElementById('searchInput');
+            const personnelRows = document.querySelectorAll('.personnel-row');
+
+            searchForm.addEventListener('submit', (event) => {
+                event.preventDefault(); 
+                const searchTerm = searchInput.value.toLowerCase();
+                let found = false;
+                personnelRows.forEach(row => row.classList.remove('highlight'));
+                if (searchTerm.length === 0) return;
+
+                for (const row of personnelRows) {
+                    const nameCell = row.querySelector('.personnel-name');
+                    if (nameCell && nameCell.textContent.toLowerCase().includes(searchTerm)) {
+                        found = true;
+                        row.classList.add('highlight');
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        break; 
+                    }
+                }
+                if (!found) alert(`Nama "${searchInput.value}" tidak ditemukan di jadwal minggu ini.`);
+            });
+
+            // --- Logika untuk Tombol Bagikan ---
+            const shareButton = document.getElementById('shareButton');
+            const shareButtonText = document.getElementById('shareButtonText');
+            
+            const copyToClipboard = (text) => {
+                if (navigator.clipboard && window.isSecureContext) {
+                    return navigator.clipboard.writeText(text);
+                } else {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'absolute';
+                    textArea.style.left = '-9999px';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        return Promise.resolve();
+                    } catch (err) {
+                        return Promise.reject(err);
+                    } finally {
+                        document.body.removeChild(textArea);
+                    }
+                }
+            };
+
+            shareButton.addEventListener('click', () => {
+                const shareUrl = `${window.location.protocol}//${window.location.host}/view/perpusjkt-guest`;
+                copyToClipboard(shareUrl).then(() => {
+                    const originalText = shareButtonText.textContent;
+                    shareButtonText.textContent = 'Link Disalin!';
+                    shareButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    shareButton.classList.add('bg-blue-600');
+                    setTimeout(() => {
+                        shareButtonText.textContent = originalText;
+                        shareButton.classList.remove('bg-blue-600');
+                        shareButton.classList.add('bg-green-600', 'hover:bg-green-700');
+                    }, 2000);
+                }).catch(err => {
+                    alert('Gagal menyalin link.');
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>

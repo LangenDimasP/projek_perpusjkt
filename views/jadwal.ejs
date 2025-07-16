@@ -1,0 +1,978 @@
+<%- include('partials/header') %>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<div x-data="jadwalController" x-init="init()">
+
+    <div id="pdf-content" class="absolute -left-full top-0 w-[1280px]">
+    </div>
+    
+    <div x-show="showSuccessToast" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-x-8" x-transition:enter-end="opacity-100 transform translate-x-0" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 transform translate-x-0" x-transition:leave-end="opacity-0 transform translate-x-8" @click.away="showSuccessToast = false" class="fixed top-24 right-8 z-50 bg-white border-l-4 border-green-500 rounded-lg shadow-2xl p-4 flex items-center" style="display: none;">
+    <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4"><i class="fas fa-check-circle text-green-500 text-xl"></i></div>
+    <p class="text-gray-700 font-semibold" x-text="toastMessage"></p>
+    <button @click="showSuccessToast = false" class="ml-4 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+</div>
+
+<div x-show="showErrorToast" x-transition x-cloak
+     class="fixed top-36 right-8 z-50 bg-white border-l-4 border-red-500 rounded-lg shadow-2xl p-4 flex items-center"
+     style="display: none;">
+    <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-4">
+        <i class="fas fa-times-circle text-red-500 text-xl"></i>
+    </div>
+    <p class="text-gray-700 font-semibold" x-text="toastMessage"></p>
+    <button @click="showErrorToast = false" class="ml-4 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+</div>
+
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 mb-6">
+        <nav class="flex space-x-1 p-2" aria-label="Tabs">
+            <button @click="openTab('kalender')" 
+                    :class="{ 'bg-indigo-600 text-white shadow-lg': activeTab === 'kalender', 'text-gray-600 hover:text-gray-800 hover:bg-gray-50': activeTab !== 'kalender' }"
+                    class="flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-200 flex items-center justify-center">
+                <i class="fas fa-calendar-alt mr-2"></i>Tampilan Kalender
+            </button>
+            <button @click="openTab('tabel')"
+                    :class="{ 'bg-indigo-600 text-white shadow-lg': activeTab === 'tabel', 'text-gray-600 hover:text-gray-800 hover:bg-gray-50': activeTab !== 'tabel' }"
+                    class="flex-1 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-200 flex items-center justify-center">
+                <i class="fas fa-table mr-2"></i>Tampilan Tabel & Aksi
+            </button>
+        </nav>
+    </div>
+
+        <div x-show="activeTab === 'kalender'">
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 mb-6 border border-blue-100">
+            <div class="flex items-center mb-2">
+                <i class="fas fa-info-circle text-blue-600 mr-3"></i>
+                <h3 class="text-lg font-semibold text-gray-800">Panduan Kalender</h3>
+            </div>
+            <p class="text-gray-600">
+                Gunakan kalender untuk melihat dan mengubah jadwal. Geser jadwal untuk memindahkannya atau klik untuk menghapus.
+            </p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                        <% 
+                          const daftarWarna = ['#809fffff', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#d112e2ff', '#5a5c69', '#f1960eff', '#5e72e4', '#f5365c'];
+                        %>
+            <div class="mb-4 flex flex-wrap gap-4 items-center">
+              <span class="font-semibold text-gray-700 mr-2">Keterangan Warna Posisi:</span>
+              <% posisi.forEach(function(p, i) { %>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium" style="background-color: <%= daftarWarna[i % daftarWarna.length] %>; color: #fff;">
+                  <%= p.nama_posisi %>
+                </span>
+              <% }) %>
+            </div>
+            <div id="calendar"></div>
+        </div>
+    </div>
+
+<div x-show="activeTab === 'tabel'" class="space-y-8">
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Form Buat Jadwal Otomatis -->
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+            <div class="flex items-center mb-6">
+                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
+                    <i class="fas fa-magic text-blue-600 text-xl"></i>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold text-gray-800">Buat Jadwal Otomatis</h4>
+                    <p class="text-sm text-gray-600">Generate jadwal untuk semua personel</p>
+                </div>
+            </div>
+            <form action="/generate-jadwal" method="POST" class="space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Tanggal Mulai</label>
+                        <input type="date" name="tanggalMulai" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Tanggal Akhir</label>
+                        <input type="date" name="tanggalAkhir" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                    </div>
+                </div>
+                <div>
+                    <label for="kecualikan" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-user-slash mr-2 text-rose-500"></i>Kecualikan Personel (Opsional)
+                    </label>
+                    <select name="kecualikan[]" id="kecualikan" class="w-full" multiple="multiple">
+                        <% personel.forEach(p => { %>
+                            <option value="<%= p.id_personel %>"><%= p.nama_lengkap %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-blue-700 hover:to-indigo-700">
+                    <i class="fas fa-cogs mr-2"></i>Buat Jadwal
+                </button>
+            </form>
+        </div>
+
+        <!-- Form Buat Jadwal Tertentu -->
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+            <div class="flex items-center mb-6">
+                <div class="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mr-4">
+                    <i class="fas fa-users-cog text-teal-600 text-xl"></i>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold text-gray-800">Buat Jadwal Tertentu</h4>
+                    <p class="text-sm text-gray-600">Generate jadwal hanya untuk personel yang dipilih</p>
+                </div>
+            </div>
+            <form action="/generate-jadwal-spesifik" method="POST" class="space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Tanggal Mulai</label>
+                        <input type="date" name="tanggalMulai" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Tanggal Akhir</label>
+                        <input type="date" name="tanggalAkhir" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                    </div>
+                </div>
+                <div>
+                    <label for="personel_terpilih" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-user-check mr-2 text-teal-500"></i>Pilih Personel
+                    </label>
+                    <select name="personel_terpilih[]" id="personel_terpilih" class="w-full" multiple="multiple" required>
+                        <% personel.forEach(p => { %>
+                            <option value="<%= p.id_personel %>"><%= p.nama_lengkap %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-teal-700 hover:to-cyan-700">
+                    <i class="fas fa-user-clock mr-2"></i>Buat Jadwal untuk Personel Ini
+                </button>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Ekspor & Hapus Jadwal: Grid 2 Kolom -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Form Ekspor ke Excel -->
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+            <div class="flex items-center mb-6">
+                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mr-4">
+                    <i class="fas fa-file-excel text-green-600 text-xl"></i>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold text-gray-800">Ekspor Jadwal ke Excel</h4>
+                    <p class="text-sm text-gray-600">Ekspor jadwal ke file Excel berdasarkan rentang tanggal</p>
+                </div>
+            </div>
+            <form action="/jadwal/ekspor" method="GET" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Dari Tanggal</label>
+                        <input type="date" name="tanggalMulai" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Sampai Tanggal</label>
+                        <input type="date" name="tanggalAkhir" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                    </div>
+                </div>
+                <button type="submit" class="w-full flex items-center justify-center bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold py-3 px-6 rounded-xl transition-opacity">
+                    <i class="fas fa-file-excel mr-2"></i>
+                    Ekspor ke Excel
+                </button>
+            </form>
+        </div>
+    
+        <!-- Form Hapus Jadwal Berdasarkan Tanggal -->
+        <div class="bg-white rounded-2xl shadow-lg border border-red-200 p-6">
+            <div class="flex items-center mb-6">
+                <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4">
+                    <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold text-gray-800">Hapus Jadwal Berdasarkan Tanggal</h4>
+                    <p class="text-sm text-gray-600">Aksi ini tidak dapat dibatalkan.</p>
+                </div>
+            </div>
+            <form action="/jadwal/hapus-rentang" method="POST" class="space-y-4" onsubmit="return confirm('Anda yakin ingin menghapus SEMUA jadwal dalam rentang tanggal yang dipilih? Aksi ini permanen!')">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Hapus Dari Tanggal</label>
+                        <input type="date" name="tanggalMulaiHapus" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Sampai Tanggal</label>
+                        <input type="date" name="tanggalAkhirHapus" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-red-600 to-rose-600 text-white font-semibold py-3 px-6 rounded-xl">
+                    <i class="fas fa-trash-alt mr-2"></i>Hapus Jadwal pada Rentang Ini
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Filter & Tabel Jadwal -->
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+        <form id="jadwalFilterForm" class="mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
+                <div>
+                    <label for="filterTanggal" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-calendar-alt mr-2 text-indigo-500"></i>Filter Tanggal
+                    </label>
+                    <input @change="handleFilterChange()" type="date" name="filterTanggal" id="filterTanggal" class="w-full px-4 py-3 border border-gray-200 rounded-xl" value="<%= query.filterTanggal || '' %>">
+                </div>
+                <div>
+                    <label for="searchNama" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-search mr-2 text-blue-500"></i>Cari Nama
+                    </label>
+                    <input @keyup.debounce.350ms="handleFilterChange()" type="text" name="searchNama" id="searchNama" class="w-full px-4 py-3 border border-gray-200 rounded-xl" value="<%= query.searchNama || '' %>" placeholder="Ketik nama...">
+                </div>
+                <div>
+                    <label for="filterPosisi" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-briefcase mr-2 text-emerald-500"></i>Filter Posisi
+                    </label>
+                    <select @change="handleFilterChange()" name="filterPosisi" id="filterPosisi" class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+                        <option value="">Semua Posisi</option>
+                        <% posisi.forEach(p => { %>
+                            <option value="<%= p.id_posisi %>" <%= query.filterPosisi == p.id_posisi ? 'selected' : '' %>><%= p.nama_posisi %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <div>
+                    <label for="filterShift" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-clock mr-2 text-pink-500"></i>Filter Shift
+                    </label>
+                    <select @change="handleFilterChange()" name="filterShift" id="filterShift" class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+                        <option value="">Semua Shift</option>
+                        <% shifts.forEach(s => { %>
+                            <option value="<%= s.id_shift %>" <%= query.filterShift == s.id_shift ? 'selected' : '' %>><%= s.nama_shift %></option>
+                        <% }) %>
+                    </select>
+                </div>
+            </div>
+        </form>
+        
+        <div id="table-content-container" @click="handlePaginationClick($event)">
+            <div class="p-6 border-t border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-list text-purple-600"></i>
+                    </div>
+                    <h4 class="text-xl font-semibold text-gray-800">Tabel Jadwal</h4>
+                </div>
+                <a href="/view/perpusjkt-guest" target="_blank"
+                   class="inline-flex items-center gap-2 bg-gray-700 hover:bg-gray-900 text-white font-semibold py-2 px-4 rounded-lg transition shadow-sm">
+                    <i class="fas fa-external-link-alt"></i>
+                    <span>Lihat Jadwal</span>
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Tanggal</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Personel</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Posisi</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Shift</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                            <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleTableBody" class="divide-y divide-gray-100">
+                        <% if (jadwal && jadwal.length > 0) { %>
+                            <% jadwal.forEach((item) => { %>
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 font-medium text-gray-900">
+                                        <%= new Date(item.tanggal_jadwal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) %>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <% if (item.nama_lengkap) { %>
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                                    <i class="fas fa-user text-blue-600 text-sm"></i>
+                                                </div>
+                                                <span><%= item.nama_lengkap %></span>
+                                            </div>
+                                        <% } else { %>
+                                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                                <i class="fas fa-exclamation-circle mr-1"></i>SLOT KOSONG
+                                            </span>
+                                        <% } %>
+                                    </td>
+                                    <td class="px-6 py-4 text-gray-900"><%= item.nama_posisi %></td>
+                                    <td class="px-6 py-4 text-gray-900"><%= item.shift_terjadwal || 'N/A' %></td>
+                                    <td class="px-6 py-4">
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium <%= item.status_jadwal === 'Manual Diedit' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800' %>">
+                                            <%= item.status_jadwal %>
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-center whitespace-nowrap">
+                                        <button @click="openEditModal(<%= item.id_jadwal %>)" class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50">
+                                            <i class="fas fa-edit mr-1"></i>Edit
+                                        </button>
+                                        <span class="text-gray-300 mx-1">|</span>
+                                        <button @click="confirmDelete(<%= item.id_jadwal %>, '<%= item.nama_lengkap || 'Slot Kosong' %>')" type="button" class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50">
+                                            <i class="fas fa-trash mr-1"></i>Hapus
+                                        </button>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        <% } else { %>
+                            <tr>
+                                <td colspan="6" class="text-center py-12">
+                                    <div class="flex flex-col items-center">
+                                        <i class="fas fa-calendar-times text-gray-400 text-4xl mb-4"></i>
+                                        <p class="text-gray-500 text-lg">Tidak ada jadwal.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 flex justify-center" id="paginationContainer">
+                <% if (totalPages > 1) { 
+                    const maxPageLinks = 5; // jumlah halaman yang tampil di tengah
+                    let startPage = Math.max(1, currentPage - Math.floor(maxPageLinks / 2));
+                    let endPage = startPage + maxPageLinks - 1;
+                    if (endPage > totalPages) {
+                        endPage = totalPages;
+                        startPage = Math.max(1, endPage - maxPageLinks + 1);
+                    }
+                %>
+                <nav class="inline-flex rounded-md shadow-sm -space-x-px">
+                    <% const params = new URLSearchParams(query); %>
+                    <% if (currentPage > 1) { %>
+                        <% params.set('page', currentPage - 1); %>
+                        <a href="/jadwal?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">&laquo;</a>
+                    <% } %>
+                    <% if (startPage > 1) { %>
+                        <% params.set('page', 1); %>
+                        <a href="/jadwal?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">1</a>
+                        <% if (startPage > 2) { %>
+                            <span class="inline-flex items-center px-2 py-2 text-gray-400">...</span>
+                        <% } %>
+                    <% } %>
+                    <% for(let i = startPage; i <= endPage; i++) { %>
+                        <% params.set('page', i); %>
+                        <% if (i === currentPage) { %>
+                            <span class="pagination-link relative z-10 inline-flex items-center px-4 py-2 border border-blue-500 bg-blue-50 text-sm font-medium text-blue-600"><%= i %></span>
+                        <% } else { %>
+                            <a href="/jadwal?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><%= i %></a>
+                        <% } %>
+                    <% } %>
+                    <% if (endPage < totalPages) { %>
+                        <% if (endPage < totalPages - 1) { %>
+                            <span class="inline-flex items-center px-2 py-2 text-gray-400">...</span>
+                        <% } %>
+                        <% params.set('page', totalPages); %>
+                        <a href="/jadwal?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><%= totalPages %></a>
+                    <% } %>
+                    <% if (currentPage < totalPages) { %>
+                        <% params.set('page', currentPage + 1); %>
+                        <a href="/jadwal?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">&raquo;</a>
+                    <% } %>
+                </nav>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <div x-show="showEditModal" 
+     @keydown.escape.window="showEditModal = false" 
+     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" 
+     style="display: none;">
+
+    <div @click.away="showEditModal = false" class="w-full max-w-md bg-white rounded-2xl shadow-xl">
+        <div class="flex justify-between items-center p-6 border-b border-gray-100">
+            <h2 class="text-xl font-semibold text-gray-800">Edit Jadwal</h2>
+            <button @click="showEditModal = false" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+
+        <template x-if="showEditModal">
+            <form @submit.prevent="submitEditForm" class="p-6 space-y-4">
+                <input type="hidden" x-model="editData.id_jadwal">
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Tanggal</label>
+                    <input type="date" x-model="editData.tanggal_jadwal" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Posisi</label>
+                    <select x-model="editData.id_posisi" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+                        <% posisi.forEach(p => { %>
+                            <option value="<%= p.id_posisi %>"><%= p.nama_posisi %></option>
+                        <% }) %>
+                    </select>
+                </div>
+
+                <div>
+                    <select x-model="editData.id_shift" class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+                        <option value="">-- Kosongkan Shift --</option>
+                        <% shifts.forEach(s => { %>
+                            <option value="<%= s.id_shift %>"><%= s.nama_shift %></option>
+                        <% }) %>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Personel</label>
+                    <select x-model="editData.id_personel" class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+                        <option value="">-- Kosongkan Slot --</option>
+                        <% personel.forEach(p => { %>
+                            <option value="<%= p.id_personel %>"><%= p.nama_lengkap %></option>
+                        <% }) %>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-blue-700 hover:to-indigo-700">
+                    <i class="fas fa-save mr-2"></i>Simpan Perubahan
+                </button>
+            </form>
+        </template>
+    </div>
+</div>
+<div x-show="showDeleteConfirmModal" @keydown.escape.window="showDeleteConfirmModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" style="display: none;">
+        <div @click.away="showDeleteConfirmModal = false" class="w-full max-w-md bg-white rounded-2xl shadow-xl">
+            <div class="p-8 text-center">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Konfirmasi Hapus</h2>
+                <p class="text-gray-600 mt-2">
+                    Anda yakin ingin menghapus jadwal untuk <br> "<strong x-text="itemToDelete.name"></strong>"?
+                    <br>
+                    <span class="font-semibold text-red-600">Aksi ini tidak dapat dibatalkan.</span>
+                </p>
+                <div class="mt-6 flex justify-center gap-4">
+                    <button @click="showDeleteConfirmModal = false" class="px-8 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">
+                        Batal
+                    </button>
+                    <button @click="executeDelete()" class="px-8 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">
+                        Ya, Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('jadwalController', () => ({
+            // --- STATE MANAGEMENT ---
+            activeTab: 'kalender',
+            showEditModal: false,
+            editData: {},
+            showDeleteConfirmModal: false,
+            itemToDelete: { id: null, name: '' },
+            showSuccessToast: false,
+            showErrorToast: false,
+            toastMessage: '',
+            debounceTimer: null,
+            pdfStartDate: '',
+            pdfEndDate: '',
+            isExportingPDF: false,
+            
+            // --- INITIALIZATION ---
+            init() {
+                var calendarEl = document.getElementById('calendar');
+                if (calendarEl) {
+                    window.calendar = new FullCalendar.Calendar(calendarEl, {
+                        initialView: 'dayGridMonth',
+                        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
+                        editable: true,
+                        events: '/api/jadwal',
+                        timeZone: 'Asia/Jakarta',
+                        displayEventTime: false,
+                        eventClick: (info) => this.confirmDelete(info.event.id, info.event.title),
+                        eventDrop: (info) => this.handleEventDrop(info),
+                        eventDidMount: (info) => {
+    // Tooltip custom
+    let tooltip;
+    info.el.addEventListener('mouseenter', function(e) {
+        // Hapus tooltip lama jika ada
+        document.querySelectorAll('.fc-custom-tooltip').forEach(el => el.remove());
+        // Buat tooltip baru
+        tooltip = document.createElement('div');
+        tooltip.className = 'fc-custom-tooltip bg-white border border-gray-300 rounded-lg shadow-lg px-4 py-2 text-sm text-gray-700 absolute z-50';
+        tooltip.style.position = 'absolute';
+        tooltip.style.top = (e.clientY + 12) + 'px';
+        tooltip.style.left = (e.clientX - 40) + 'px';
+        tooltip.innerHTML = `<b>Posisi:</b> ${info.event.extendedProps.posisi || '-'}`;
+        document.body.appendChild(tooltip);
+    });
+    info.el.addEventListener('mousemove', function(e) {
+        if (tooltip) {
+            tooltip.style.top = (e.clientY + 12) + 'px';
+            tooltip.style.left = (e.clientX - 40) + 'px';
+        }
+    });
+    info.el.addEventListener('mouseleave', function() {
+        if (tooltip) tooltip.remove();
+    });
+},
+                    });
+                    window.calendar.render();
+                }
+
+                const params = new URLSearchParams(window.location.search);
+                const status = params.get('generation_status') || params.get('status');
+                const tab = params.get('tab');
+
+                if (status === 'success' || status === 'hapus_rentang_sukses') {
+                    // --- PERBAIKAN DI SINI ---
+                    // Jika ada jadwal baru atau penghapusan, update rentang tanggal
+                    this.updateDateRangeInputs();
+                    
+                    if (status === 'success') this.triggerToast('Jadwal baru telah berhasil dibuat!', 'success');
+                    if (status === 'hapus_rentang_sukses') {
+                        const jumlah = params.get('jumlah') || 0;
+                        this.triggerToast(`${jumlah} entri jadwal berhasil dihapus.`, 'success');
+                    }
+                }
+                
+                if (status === 'gagal') this.triggerToast('Aksi gagal, terjadi kesalahan di server.', 'error');
+                if (tab === 'tabel') this.openTab('tabel');
+                
+                if (status || tab) {
+                    window.history.replaceState({}, document.title, '/jadwal');
+                }
+            },
+
+            // --- METHODS ---
+            openTab(tab) {
+                this.activeTab = tab;
+                if (tab === 'kalender') {
+                    setTimeout(() => {
+                        // Destroy calendar jika sudah ada
+                        if (window.calendar) {
+                            window.calendar.destroy();
+                        }
+                        // Re-init calendar
+                        const calendarEl = document.getElementById('calendar');
+                        if (calendarEl) {
+                            window.calendar = new FullCalendar.Calendar(calendarEl, {
+                                initialView: 'dayGridMonth',
+                                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
+                                editable: true,
+                                events: '/api/jadwal',
+                                timeZone: 'Asia/Jakarta',
+                                displayEventTime: false,
+                                eventClick: (info) => this.confirmDelete(info.event.id, info.event.title),
+                                eventDrop: (info) => this.handleEventDrop(info),
+                               eventDidMount: (info) => {
+    // Tooltip custom
+    let tooltip;
+    info.el.addEventListener('mouseenter', function(e) {
+        // Hapus tooltip lama jika ada
+        document.querySelectorAll('.fc-custom-tooltip').forEach(el => el.remove());
+        // Buat tooltip baru
+        tooltip = document.createElement('div');
+        tooltip.className = 'fc-custom-tooltip bg-white border border-gray-300 rounded-lg shadow-lg px-4 py-2 text-sm text-gray-700 absolute z-50';
+        tooltip.style.position = 'absolute';
+        tooltip.style.top = (e.clientY + 12) + 'px';
+        tooltip.style.left = (e.clientX - 40) + 'px';
+        tooltip.innerHTML = `<b>Posisi:</b> ${info.event.extendedProps.posisi || '-'}`;
+        document.body.appendChild(tooltip);
+    });
+    info.el.addEventListener('mousemove', function(e) {
+        if (tooltip) {
+            tooltip.style.top = (e.clientY + 12) + 'px';
+            tooltip.style.left = (e.clientX - 40) + 'px';
+        }
+    });
+    info.el.addEventListener('mouseleave', function() {
+        if (tooltip) tooltip.remove();
+    });
+},
+                            });
+                            window.calendar.render();
+                        }
+                    }, 50);
+                }
+            },
+            
+            openEditModal(id) {
+                fetch(`/api/jadwal/${id}`).then(r => r.json()).then(data => {
+                    const d = new Date(data.tanggal_jadwal);
+                    data.tanggal_jadwal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    this.editData = data;
+                    this.showEditModal = true;
+                }).catch(e => {
+                    console.error('Gagal ambil data jadwal:', e);
+                    this.triggerToast('Gagal memuat data edit.', 'error');
+                });
+            },
+
+            submitEditForm() {
+                // Validasi: Cek apakah personel sudah ada di tanggal yang sama (kecuali id_jadwal yang sedang diedit)
+                fetch(`/api/jadwal?filterTanggal=${this.editData.tanggal_jadwal}&filterPersonel=${this.editData.id_personel}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        // Cek jika ada jadwal lain di tanggal tsb untuk personel tsb (selain id_jadwal yang sedang diedit)
+                        const bentrok = data.jadwal && data.jadwal.some(j => j.id_jadwal != this.editData.id_jadwal && j.id_personel == this.editData.id_personel);
+                        if (bentrok) {
+                            this.triggerToast('Personel ini sudah punya jadwal di tanggal tersebut!', 'error');
+                            this.showEditModal = false;
+                            return;
+                        }
+                        // Lanjutkan update jika tidak bentrok
+                        fetch(`/jadwal/update/${this.editData.id_jadwal}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.editData)
+                        }).then(async response => {
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.message || 'Error tidak diketahui');
+                            return data;
+                        }).then(data => {
+                            this.showEditModal = false;
+                            this.triggerToast('Jadwal berhasil diperbarui!', 'success');
+                            this.refreshAllData();
+                        }).catch(error => {
+                            this.showEditModal = false;
+                            this.triggerToast(error.message, 'error');
+                        });
+                    });
+            },
+
+            confirmDelete(id, name) {
+                this.itemToDelete = { id, name };
+                this.showDeleteConfirmModal = true;
+            },
+
+            executeDelete() {
+                if (!this.itemToDelete.id) return;
+                fetch(`/api/jadwal/delete/${this.itemToDelete.id}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) {
+                        this.triggerToast(d.message, 'success');
+                        this.refreshAllData();
+                    } else {
+                        this.triggerToast(d.message || 'Gagal menghapus.', 'error');
+                    }
+                }).catch(e => console.error('Error:', e))
+                .finally(() => {
+                    this.showDeleteConfirmModal = false;
+                });
+            },
+
+            handleEventDrop(info) {
+                const newDate = info.event.start.toISOString().split('T')[0];
+                const eventId = info.event.id;
+
+                fetch('/api/jadwal/update-tanggal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: eventId, tanggalBaru: newDate })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.triggerToast('Tanggal jadwal diperbarui.', 'success');
+                    } else {
+                        this.triggerToast(data.message, 'error');
+                        info.revert();
+                    }
+                }).catch((err) => {
+                    console.error('Error saat handleEventDrop:', err);
+                    this.triggerToast('Terjadi kesalahan jaringan.', 'error');
+                    info.revert();
+                });
+            },
+
+            async updateDateRangeInputs() {
+                try {
+                    const response = await fetch('/api/jadwal/date-range');
+                    const data = await response.json();
+                    if (data.minDate && data.maxDate) {
+                        const minDate = data.minDate.split('T')[0];
+                        const maxDate = data.maxDate.split('T')[0];
+                        document.querySelectorAll('input[name="tanggalMulai"], input[name="tanggalAkhir"]').forEach(input => {
+                            input.setAttribute('min', minDate);
+                            input.setAttribute('max', maxDate);
+                        });
+                    }
+                } catch (error) {
+                    console.error("Gagal update rentang tanggal:", error);
+                }
+            },
+
+            handleFilterChange() {
+                const form = document.getElementById('jadwalFilterForm');
+                const params = new URLSearchParams(new FormData(form));
+                params.set('page', 1);
+                const url = `/jadwal?${params.toString()}&tab=tabel`;
+                window.history.pushState({ path: url }, '', url);
+                this.fetchAndUpdateTable(url);
+            },
+            
+            async fetchAndUpdateTable(url) {
+                const container = document.getElementById('table-content-container');
+                try {
+                    container.style.opacity = '0.5';
+                    const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const newHtml = await response.text();
+                    const parser = new DOMParser();
+                    const newDoc = parser.parseFromString(newHtml, 'text/html');
+                    const newContent = newDoc.getElementById('table-content-container');
+                    if (newContent) {
+                        container.innerHTML = newContent.innerHTML;
+                    }
+                } catch (error) { console.error('Error fetching data:', error); }
+                finally { container.style.opacity = '1'; }
+            },
+
+            handlePaginationClick(event) {
+                const link = event.target.closest('a.pagination-link');
+                if (link) { 
+                    event.preventDefault(); 
+                    const url = link.href + '&tab=tabel'; 
+                    window.history.pushState({ path: url }, '', url); 
+                    this.fetchAndUpdateTable(url); 
+                }
+            },
+
+            refreshAllData() {
+                this.handleFilterChange();
+                if(window.calendar) window.calendar.refetchEvents();
+            },
+            
+            async exportToPDF() {
+                if (!this.pdfStartDate || !this.pdfEndDate) {
+                    this.triggerToast('Silakan pilih rentang tanggal untuk ekspor.', 'error');
+                    return;
+                }
+                this.isExportingPDF = true;
+
+                try {
+                    // 1. Ambil data dari API
+                    const [personel, jadwalResponse] = await Promise.all([
+                        fetch('/api/personel-all').then(res => res.json()),
+                        fetch(`/api/jadwal-all?start=${this.pdfStartDate}&end=${this.pdfEndDate}`).then(res => res.json())
+                    ]);
+const jadwalData = jadwalResponse.events;
+
+// CEK: Jika tidak ada jadwal, tampilkan toast error dan hentikan proses ekspor
+if (!jadwalData || jadwalData.length === 0) {
+    this.triggerToast('Tidak ada jadwal pada rentang tanggal yang dipilih.', 'error');
+    this.isExportingPDF = false;
+    return;
+}
+
+                    // 2. Proses data menjadi format pivot
+                    function addDays(dateStr, days) {
+                        const [year, month, day] = dateStr.split('-').map(Number);
+                        const date = new Date(year, month - 1, day + days);
+                        const yyyy = date.getFullYear();
+                        const mm = String(date.getMonth() + 1).padStart(2, '0');
+                        const dd = String(date.getDate()).padStart(2, '0');
+                        return `${yyyy}-${mm}-${dd}`;
+                    }
+                    const dates = [];
+                    let cur = this.pdfStartDate;
+                    while (cur <= this.pdfEndDate) {
+                        dates.push(cur);
+                        cur = addDays(cur, 1);
+                    }
+
+                    const pivotData = {};
+                    const jadwalMap = new Map();
+                    jadwalData.forEach(j => {
+                        const personelInfo = personel.find(p => p.nama_lengkap === j.title);
+                        if (personelInfo) {
+                            const dateStr = j.start; // Sudah string 'YYYY-MM-DD'
+                            const key = `${personelInfo.id_personel}-${dateStr}`;
+                            const shiftName = j.description ? j.description.split(' - ')[1] : '';
+                            jadwalMap.set(key, shiftName || '');
+                        }
+                    });
+
+                    personel.forEach(p => {
+                        const posisi = p.posisi_kerja_utama || 'Tanpa Posisi';
+                        if (!pivotData[posisi]) { pivotData[posisi] = []; }
+                        const personelJadwal = { nama_lengkap: p.nama_lengkap, jadwal: {} };
+                        dates.forEach(date => {
+                            personelJadwal.jadwal[date] = jadwalMap.get(`${p.id_personel}-${date}`) || null;
+                        });
+                        pivotData[posisi].push(personelJadwal);
+                    });
+
+                    // 3. Buat PDF dengan jsPDF dan autoTable
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+
+                    // Judul
+                    doc.setFontSize(18);
+                    doc.text('Jadwal Petugas', doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+                    doc.setFontSize(12);
+                    const tglMulai = new Date(this.pdfStartDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'long' });
+                    const tglAkhir = new Date(this.pdfEndDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+                    doc.text(`Tanggal: ${tglMulai} - ${tglAkhir}`, doc.internal.pageSize.getWidth() / 2, 28, { align: 'center' });
+
+                    const head = [['No.', 'Nama']];
+                    const dateHeaders = dates.map(d => {
+                        const dateObj = new Date(d);
+                        return `${dateObj.toLocaleDateString('id-ID', { weekday: 'short' })}\n${dateObj.getDate()}`;
+                    });
+                    head[0].push(...dateHeaders);
+
+                    const body = [];
+                    Object.keys(pivotData).sort().forEach(posisi => {
+                        body.push([{ content: `POSISI: ${posisi}`, colSpan: dates.length + 2, styles: { fontStyle: 'bold', fillColor: '#e0e7ef', textColor: '#000', halign: 'left' } }]);
+                        pivotData[posisi].forEach((p, index) => {
+                            const row = [index + 1, p.nama_lengkap];
+                            dates.forEach(date => {
+                                row.push(p.jadwal[date] || '');
+                            });
+                            body.push(row);
+                        });
+                    });
+                    
+                    doc.autoTable({
+                        head: head,
+                        body: body,
+                        startY: 35,
+                        theme: 'grid',
+                        headStyles: { fillColor: '#f3f4f6', textColor: '#333', fontStyle: 'bold', halign: 'center', valign: 'middle' },
+                        didParseCell: function(data) {
+                            if (data.cell.raw === '') {
+                                data.cell.styles.fillColor = '#ffe5e5';
+                            }
+                            if (data.row.section === 'body' && data.column.index === 1) {
+                                data.cell.styles.halign = 'left'; // Align nama personel ke kiri
+                            }
+                        },
+                    });
+
+                    doc.save(`Jadwal_${this.pdfStartDate}_sd_${this.pdfEndDate}.pdf`);
+
+                } catch (error) {
+                    console.error('Error saat membuat PDF:', error);
+                    this.triggerToast('Gagal membuat PDF. Cek console untuk detail.', 'error');
+                } finally {
+                    this.isExportingPDF = false;
+                }
+            },
+
+            triggerToast(message, type = 'success') {
+                this.toastMessage = message;
+                if (type === 'success') {
+                    this.showSuccessToast = true;
+                    this.showErrorToast = false;
+                    setTimeout(() => this.showSuccessToast = false, 3000);
+                } else {
+                    this.showErrorToast = true;
+                    this.showSuccessToast = false;
+                    setTimeout(() => this.showErrorToast = false, 5000);
+                }
+            }
+        }));
+    });
+
+    // Inisialisasi plugin jQuery
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof $ !== 'undefined' && $.fn.select2) {
+            $('#kecualikan').select2({
+                width: '100%',
+                placeholder: 'Pilih satu atau lebih personel',
+                allowClear: true
+            });
+        }
+    });
+    $('#personel_terpilih').select2({
+                width: '100%',
+                placeholder: 'Pilih personel yang akan dijadwalkan',
+                allowClear: true
+            });
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inisialisasi select2 (sudah ada di kode Anda)
+    if (typeof $ !== 'undefined' && $.fn.select2) {
+        $('#kecualikan').select2({
+            width: '100%',
+            placeholder: 'Pilih satu atau lebih personel',
+            allowClear: true
+        });
+        $('#personel_terpilih').select2({
+                width: '100%',
+                placeholder: 'Pilih personel yang akan dijadwalkan',
+                allowClear: true
+            });
+    }
+
+    // Toast fallback dengan styling
+    function showStyledToast(message) {
+        // Hapus toast lama jika ada
+        const old = document.getElementById('custom-toast-error');
+        if (old) old.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'custom-toast-error';
+        toast.className = 'fixed top-36 right-8 z-50 bg-white border-l-4 border-red-500 rounded-lg shadow-2xl p-4 flex items-center animate-fade-in';
+        toast.innerHTML = `
+            <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-4">
+                <i class="fas fa-times-circle text-red-500 text-xl"></i>
+            </div>
+            <p class="text-gray-700 font-semibold">${message}</p>
+            <button class="ml-4 text-gray-400 hover:text-gray-600 text-2xl" onclick="this.parentElement.remove()">&times;</button>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.remove(); }, 5000);
+    }
+
+    // Validasi form ekspor Excel
+    const eksporForm = document.querySelector('form[action="/jadwal/ekspor"]');
+    if (eksporForm) {
+        eksporForm.addEventListener('submit', async function(e) {
+            const tglMulai = eksporForm.querySelector('input[name="tanggalMulai"]').value;
+            const tglAkhir = eksporForm.querySelector('input[name="tanggalAkhir"]').value;
+            if (!tglMulai || !tglAkhir) return; // Sudah divalidasi required
+
+            // Validasi tanggal akhir >= tanggal mulai
+            if (tglAkhir < tglMulai) {
+                e.preventDefault();
+                if (window.Alpine && Alpine.store && Alpine.store('jadwalController')) {
+                    Alpine.store('jadwalController').triggerToast('Tanggal akhir tidak boleh lebih kecil dari tanggal mulai.', 'error');
+                } else if (window.jadwalController && typeof window.jadwalController.triggerToast === 'function') {
+                    window.jadwalController.triggerToast('Tanggal akhir tidak boleh lebih kecil dari tanggal mulai.', 'error');
+                } else {
+                    showStyledToast('Tanggal akhir tidak boleh lebih kecil dari tanggal mulai.');
+                }
+                return;
+            }
+
+            // Cek ke API apakah ada jadwal di rentang tanggal tsb
+            e.preventDefault();
+            try {
+                const res = await fetch(`/api/jadwal-all?start=${tglMulai}&end=${tglAkhir}`);
+                const data = await res.json();
+                if (!data.events || data.events.length === 0) {
+                    if (window.Alpine && Alpine.store && Alpine.store('jadwalController')) {
+                        Alpine.store('jadwalController').triggerToast('Tidak ada jadwal pada rentang tanggal yang dipilih.', 'error');
+                    } else if (window.jadwalController && typeof window.jadwalController.triggerToast === 'function') {
+                        window.jadwalController.triggerToast('Tidak ada jadwal pada rentang tanggal yang dipilih.', 'error');
+                    } else {
+                        showStyledToast('Tidak ada jadwal pada rentang tanggal yang dipilih.');
+                    }
+                } else {
+                    eksporForm.submit(); // Lanjut submit jika ada jadwal
+                }
+            } catch (err) {
+                showStyledToast('Gagal memeriksa data jadwal.');
+            }
+        });
+    }
+});
+</script>
+
+<%- include('partials/footer') %>

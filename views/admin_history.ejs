@@ -1,0 +1,115 @@
+<%- include('partials/header', { title: title, currentPath: '/admin/history' }) %>
+
+<div class="flex flex-col flex-1 min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50">
+  <div class="max-w-6xl mx-auto px-4 py-10">
+    <h1 class="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
+      <i class="fas fa-history text-[#0065F8]"></i>
+      Riwayat Aktivitas Admin
+    </h1>
+
+    <form method="get" id="filterForm" class="mb-6 flex flex-wrap gap-4 items-center bg-white rounded-xl shadow px-6 py-4">
+      <div class="flex items-center gap-2">
+        <label for="filterUser" class="text-sm font-medium text-gray-700">User:</label>
+        <select name="user" id="filterUser"
+          class="border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition">
+          <option value="">Semua User</option>
+          <% users.forEach(function(u) { %>
+            <option value="<%= u.username %>" <%= (selectedUser === u.username) ? 'selected' : '' %>><%= u.username %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="flex items-center gap-2">
+        <label for="filterTable" class="text-sm font-medium text-gray-700">Tabel:</label>
+        <select name="table" id="filterTable"
+          class="border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition">
+          <option value="">Semua Tabel</option>
+          <% tables.forEach(function(t) { %>
+            <option value="<%= t.table_name %>" <%= (selectedTable === t.table_name) ? 'selected' : '' %>><%= t.table_name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <input type="hidden" name="page" value="1">
+      <script>
+        document.querySelectorAll('#filterUser,#filterTable').forEach(el => {
+          el.onchange = () => el.form.submit();
+        });
+      </script>
+    </form>
+
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-gradient-to-r from-blue-50 to-indigo-100">
+          <tr>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700">No</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700">Waktu</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700">Username</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700">Aksi</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700">Tabel</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700">ID Record</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700">Keterangan</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-100">
+          <% if (logs.length === 0) { %>
+            <tr>
+              <td colspan="7" class="text-center py-10 text-gray-400">
+                <i class="fas fa-info-circle text-2xl mb-2"></i><br>
+                Belum ada aktivitas
+              </td>
+            </tr>
+          <% } %>
+          <% logs.forEach(function(log, idx) { %>
+            <tr class="hover:bg-blue-50 transition">
+              <td class="px-5 py-3"><%= (currentPage - 1) * 10 + idx + 1 %></td>
+              <td class="px-5 py-3 whitespace-nowrap"><%= log.created_at.toLocaleString('id-ID') %></td>
+              <td class="px-5 py-3"><span class="inline-flex items-center gap-2"><i class="fas fa-user text-blue-400"></i> <%= log.username %></span></td>
+              <td class="px-5 py-3">
+                <span class="inline-block px-2 py-1 rounded text-xs font-semibold
+                  <% if(log.action === 'CREATE') { %> bg-green-100 text-green-700 <% }
+                     else if(log.action === 'UPDATE') { %> bg-yellow-100 text-yellow-700 <% }
+                     else if(log.action === 'DELETE') { %> bg-red-100 text-red-700 <% }
+                     else { %> bg-gray-100 text-gray-700 <% } %>">
+                  <%= log.action %>
+                </span>
+              </td>
+              <td class="px-5 py-3"><%= log.table_name %></td>
+              <td class="px-5 py-3"><%= log.record_id || '-' %></td>
+              <td class="px-5 py-3"><%= log.description %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex justify-center mt-8">
+      <% if (totalPages > 1) { %>
+        <nav class="inline-flex rounded-md shadow-sm -space-x-px">
+          <% 
+            let params = new URLSearchParams(query);
+            params.delete('page');
+          %>
+          <% if (currentPage > 1) { %>
+            <% params.set('page', currentPage - 1); %>
+            <a href="?<%= params.toString() %>" class="px-3 py-2 border rounded-l bg-white text-gray-700 hover:bg-blue-50">&laquo;</a>
+          <% } %>
+          <% for(let i = 1; i <= totalPages; i++) { %>
+            <% params.set('page', i); %>
+            <% if (i === currentPage) { %>
+              <span class="px-3 py-2 border bg-blue-600 text-white font-bold"><%= i %></span>
+            <% } else { %>
+              <a href="?<%= params.toString() %>" class="px-3 py-2 border bg-white text-gray-700 hover:bg-blue-50"><%= i %></a>
+            <% } %>
+          <% } %>
+          <% if (currentPage < totalPages) { %>
+            <% params.set('page', currentPage + 1); %>
+            <a href="?<%= params.toString() %>" class="px-3 py-2 border rounded-r bg-white text-gray-700 hover:bg-blue-50">&raquo;</a>
+          <% } %>
+        </nav>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

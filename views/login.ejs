@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .login-shadow {
+            box-shadow: 
+                0 25px 50px -12px rgba(0, 0, 0, 0.25),
+                0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-white min-h-screen flex items-center justify-center p-4">
+    
+    <!-- Centered Login Form -->
+    <div class="w-full max-w-md">
+        
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="w-28 h-28 bg-[#0065F8] rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <img src="images/logo.png" alt="Logo" class="w-16 h-16" />
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800">JAKILS</h2>
+            <p class="text-sm text-gray-500 mt-1">Jakarta Integrated Library System</p>
+        </div>
+        <!-- Login Form -->
+        <div class="bg-white rounded-2xl login-shadow p-8">
+            <div class="mb-8 text-center">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Login</h1>
+                <p class="text-gray-500">Silakan masukkan kredensial Anda</p>
+            </div>
+
+            <% if (error) { %>
+                <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+                    <div class="flex">
+                        <i class="fas fa-exclamation-circle text-red-500 mr-3 mt-0.5"></i>
+                        <span class="text-red-700"><%= error %></span>
+                    </div>
+                </div>
+            <% } %>
+
+            <form action="/login" method="POST" class="space-y-6">
+                <!-- Username Field -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2" for="username">
+                        Username
+                    </label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-user text-gray-400"></i>
+                        </div>
+                        <input 
+                            class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                            id="username" 
+                            name="username" 
+                            type="text" 
+                            placeholder="Masukkan username Anda" 
+                            required>
+                    </div>
+                </div>
+
+                <!-- Password Field -->
+<div>
+    <label class="block text-sm font-semibold text-gray-700 mb-2" for="password">
+        Password
+    </label>
+    <div class="relative">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <i class="fas fa-lock text-gray-400"></i>
+        </div>
+        <input 
+            class="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+            id="password" 
+            name="password" 
+            type="password" 
+            placeholder="Masukkan password Anda" 
+            required>
+        <!-- Icon Mata -->
+        <button type="button" id="togglePassword" tabindex="-1"
+            class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none">
+            <i class="fas fa-eye" id="eyeIcon"></i>
+        </button>
+    </div>
+</div>
+
+                <!-- Remember Me & Forgot Password -->
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center">
+                        <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="ml-2 text-sm text-gray-600">Ingat saya</span>
+                    </label>
+                </div>
+
+                <!-- Login Button -->
+                <button 
+                    type="submit" 
+                    class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    <i class="fas fa-sign-in-alt mr-2"></i>
+                    Masuk
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    const passwordInput = document.getElementById('password');
+    const togglePassword = document.getElementById('togglePassword');
+    const eyeIcon = document.getElementById('eyeIcon');
+    togglePassword.addEventListener('click', function () {
+        const type = passwordInput.type === 'password' ? 'text' : 'password';
+        passwordInput.type = type;
+        eyeIcon.classList.toggle('fa-eye');
+        eyeIcon.classList.toggle('fa-eye-slash');
+    });
+</script>
+
+</body>
+</html>

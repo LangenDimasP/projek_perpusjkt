@@ -1,0 +1,141 @@
+<%- include('partials/header') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<div x-data="batasanController()" x-init="init()" class="max-w-7xl mx-auto space-y-8">
+    <div x-show="showSuccessToast" x-transition x-cloak class="fixed top-24 right-8 z-50 bg-white border-l-4 border-green-500 rounded-lg shadow-2xl p-4 flex items-center"><div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4"><i class="fas fa-check-circle text-green-500 text-xl"></i></div><p class="text-gray-700 font-semibold" x-text="toastMessage"></p><button @click="showSuccessToast = false" class="ml-4 text-gray-400 hover:text-gray-600 text-2xl">&times;</button></div>
+    <div x-show="showErrorToast" x-transition x-cloak class="fixed top-24 right-8 z-50 bg-white border-l-4 border-red-500 rounded-lg shadow-2xl p-4 flex items-center"><div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-4"><i class="fas fa-exclamation-circle text-red-500 text-xl"></i></div><p class="text-gray-700 font-semibold" x-text="toastMessage"></p><button @click="showErrorToast = false" class="ml-4 text-gray-400 hover:text-gray-600 text-2xl">&times;</button></div>
+
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+        <div class="flex items-center mb-6"><div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4"><i class="fas fa-ban text-red-600 text-xl"></i></div><div><h4 class="text-xl font-semibold text-gray-800">Tambah Batasan Baru</h4><p class="text-sm text-gray-600">Kelola ketersediaan personel</p></div></div>
+        <form @submit.prevent="submitAddForm($event)" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div><label for="id_personel" class="block text-sm font-semibold text-gray-700 mb-2">Personel</label><select id="id_personel" name="id_personel" required class="w-full px-4 py-3 border border-gray-200 rounded-xl"><option value="" disabled selected>-- Pilih Personel --</option><% personel.forEach(p => { %><option value="<%= p.id_personel %>"><%= p.nama_lengkap %></option><% }) %></select></div>
+                <div><label for="jenis_batasan" class="block text-sm font-semibold text-gray-700 mb-2">Jenis Batasan</label><select id="jenis_batasan" name="jenis_batasan" required class="w-full px-4 py-3 border border-gray-200 rounded-xl"><option value="Cuti">Cuti</option><option value="Sakit">Sakit</option><option value="Tidak Tersedia">Tidak Tersedia</option></select></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div><label for="tanggal_mulai" class="block text-sm font-semibold text-gray-700 mb-2">Tanggal Mulai</label><input type="date" id="tanggal_mulai" name="tanggal_mulai" required class="w-full px-4 py-3 border border-gray-200 rounded-xl"></div>
+                <div><label for="tanggal_akhir" class="block text-sm font-semibold text-gray-700 mb-2">Tanggal Akhir</label><input type="date" id="tanggal_akhir" name="tanggal_akhir" required class="w-full px-4 py-3 border border-gray-200 rounded-xl"></div>
+            </div>
+            <div><label for="keterangan" class="block text-sm font-semibold text-gray-700 mb-2">Keterangan (Opsional)</label><input type="text" id="keterangan" name="keterangan" placeholder="Tambahkan keterangan jika diperlukan..." class="w-full px-4 py-3 border border-gray-200 rounded-xl"></div>
+            <button type="submit" class="w-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-red-700 hover:to-pink-700 transition-all transform hover:scale-105"><i class="fas fa-save mr-2"></i>Tambah Batasan</button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-100">
+        <div class="p-6 border-b border-gray-100"><div class="flex flex-col md:flex-row justify-between items-center gap-4"><div class="flex items-center"><div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-3"><i class="fas fa-list text-purple-600"></i></div><h4 class="text-xl font-semibold text-gray-800">Daftar Batasan</h4></div><form id="batasanFilterForm" class="flex flex-col sm:flex-row gap-3 w-full md:w-auto"><select @change="handleFilterChange()" name="filterJenis" class="p-2 border border-gray-300 rounded-md"><option value="">Semua Jenis</option><option value="Cuti" <%= query.filterJenis === 'Cuti' ? 'selected' : '' %>>Cuti</option><option value="Sakit" <%= query.filterJenis === 'Sakit' ? 'selected' : '' %>>Sakit</option><option value="Tidak Tersedia" <%= query.filterJenis === 'Tidak Tersedia' ? 'selected' : '' %>>Tidak Tersedia</option></select><input @keyup.debounce.350ms="handleFilterChange()" type="text" name="searchNama" class="p-2 border border-gray-300 rounded-md" value="<%= query.searchNama || '' %>" placeholder="Cari nama..."></form></div></div>
+        <div id="table-content-container" @click="handlePaginationClick($event)">
+            <div class="overflow-x-auto"><table class="w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Nama Personel</th><th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Jenis</th><th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Tanggal</th><th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Keterangan</th><th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Aksi</th></tr></thead>
+                <tbody id="batasanTableBody" class="divide-y divide-gray-100">
+    <% if (batasan && batasan.length > 0) { %>
+        <% batasan.forEach(b => { %>
+            <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                            <i class="fas fa-user text-blue-600 text-sm"></i>
+                        </div>
+                        <span class="font-medium text-gray-900"><%= b.nama_lengkap %></span>
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    <% let badgeClass = 'bg-gray-100 text-gray-800'; %>
+                    <% if (b.jenis_batasan === 'Cuti') { badgeClass = 'bg-blue-100 text-blue-800'; } else if (b.jenis_batasan === 'Sakit') { badgeClass = 'bg-red-100 text-red-800'; } else if (b.jenis_batasan === 'Tidak Tersedia') { badgeClass = 'bg-yellow-100 text-yellow-800'; } %>
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium <%= badgeClass %>">
+                        <%= b.jenis_batasan %>
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-gray-900 whitespace-nowrap">
+                    <%= new Date(b.tanggal_mulai).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) %> - <%= new Date(b.tanggal_akhir).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) %>
+                </td>
+                <td class="px-6 py-4 text-gray-600"><%= b.keterangan || '-' %></td>
+                <td class="px-6 py-4 text-center">
+                    <form :id="'delete-form-' + <%= b.id_batasan %>" action="/batasan/hapus/<%= b.id_batasan %>" method="POST" class="inline-block"></form>
+                    <button type="button" @click="confirmDelete(<%= b.id_batasan %>, '<%= b.nama_lengkap %>')" class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 transition-colors">
+                        <i class="fas fa-trash mr-1"></i>Hapus
+                    </button>
+                </td>
+            </tr>
+        <% }) %>
+    <% } else { %>
+        <tr>
+            <td colspan="5" class="text-center py-12">
+                <div class="flex flex-col items-center">
+                    <i class="fas fa-ban text-gray-400 text-4xl mb-4"></i>
+                    <p class="text-gray-500 text-lg">Tidak ada data batasan.</p>
+                </div>
+            </td>
+        </tr>
+    <% } %>
+</tbody>
+            </table></div>
+            <div class="p-6 border-t border-gray-100 flex justify-center" id="paginationContainer"><% if (totalPages > 1) { %><nav class="inline-flex rounded-md shadow-sm -space-x-px"><% const params = new URLSearchParams(query); %><% if (currentPage > 1) { %><% params.set('page', currentPage - 1); %><a href="/batasan?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">&laquo;</a><% } %><% for(let i = 1; i <= totalPages; i++) { %><% params.set('page', i); %><% if (i === currentPage) { %><span class="pagination-link relative z-10 inline-flex items-center px-4 py-2 border border-red-500 bg-red-50 text-sm font-medium text-red-600"><%= i %></span><% } else { %><a href="/batasan?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><%= i %></a><% } %><% } %><% if (currentPage < totalPages) { %><% params.set('page', currentPage + 1); %><a href="/batasan?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">&raquo;</a><% } %></nav><% } %></div>
+        </div>
+    </div>
+
+    <div x-show="showDeleteConfirmModal" @keydown.escape.window="showDeleteConfirmModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" style="display: none;"><div @click.away="showDeleteConfirmModal = false" class="w-full max-w-md bg-white rounded-2xl shadow-xl"><div class="p-8 text-center"><div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5"><i class="fas fa-exclamation-triangle text-red-500 text-3xl"></i></div><h2 class="text-2xl font-bold text-gray-800">Konfirmasi Hapus</h2><p class="text-gray-600 mt-2">Anda yakin ingin menghapus batasan untuk <br> "<strong x-text="itemToDelete.name"></strong>"?</p><div class="mt-6 flex justify-center gap-4"><button @click="showDeleteConfirmModal = false" class="px-8 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Batal</button><button @click="executeDelete()" class="px-8 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">Ya, Hapus</button></div></div></div></div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('batasanController', () => ({
+        showSuccessToast: false, showErrorToast: false, toastMessage: '',
+        showDeleteConfirmModal: false, itemToDelete: { id: null, name: '' },
+        debounceTimer: null,
+        
+        init() {
+            const params = new URLSearchParams(window.location.search);
+            const status = params.get('status');
+            if (status === 'hapus_sukses') { this.triggerToast('Batasan berhasil dihapus.', 'success'); }
+            else if (status === 'gagal') { this.triggerToast('Aksi gagal, terjadi kesalahan di server.', 'error'); }
+            if (status) { window.history.replaceState({}, document.title, '/batasan'); }
+        },
+        triggerToast(message, type = 'success') {
+            this.toastMessage = message;
+            if (type === 'success') { this.showSuccessToast = true; setTimeout(() => this.showSuccessToast = false, 3000); } 
+            else { this.showErrorToast = true; setTimeout(() => this.showErrorToast = false, 4000); }
+        },
+        submitAddForm(event) {
+            const form = event.target; const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            fetch('/batasan/tambah', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+            .then(async res => {
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.message || `Error ${res.status}`);
+                return result;
+            }).then(result => {
+                this.triggerToast(result.message, 'success');
+                form.reset(); this.handleFilterChange();
+            }).catch(error => { this.triggerToast(error.message, 'error'); });
+        },
+        confirmDelete(id, name) { this.itemToDelete = { id, name }; this.showDeleteConfirmModal = true; },
+        executeDelete() { const form = document.getElementById('delete-form-' + this.itemToDelete.id); if (form) { form.submit(); } this.showDeleteConfirmModal = false; },
+        handleFilterChange() {
+            const form = document.getElementById('batasanFilterForm');
+            const params = new URLSearchParams(new FormData(form));
+            params.set('page', 1);
+            const url = `/batasan?${params.toString()}`;
+            window.history.pushState({ path: url }, '', url);
+            this.fetchAndUpdateTable(url);
+        },
+        debounceHandleFilter() { clearTimeout(this.debounceTimer); this.debounceTimer = setTimeout(() => this.handleFilterChange(), 350); },
+        async fetchAndUpdateTable(url) {
+            const container = document.getElementById('table-content-container');
+            try {
+                container.style.opacity = '0.5';
+                const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const newHtml = await response.text();
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(newHtml, 'text/html');
+                container.innerHTML = newDoc.getElementById('table-content-container').innerHTML;
+            } catch (error) { console.error('Error:', error); }
+            finally { container.style.opacity = '1'; }
+        },
+        handlePaginationClick(event) {
+            const link = event.target.closest('a.pagination-link');
+            if (link) { event.preventDefault(); const url = link.href; window.history.pushState({ path: url }, '', url); this.fetchAndUpdateTable(url); }
+        }
+    }));
+});
+</script>
+
+<%- include('partials/footer') %>
