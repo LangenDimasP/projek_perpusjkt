@@ -11,4 +11,4 @@ yarn-debug.log
 
 # File sistem operasi
 .DS_Store
-Thumbs.db
+Thumbs.dbgit push -u origin main
