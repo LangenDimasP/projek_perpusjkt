@@ -742,7 +742,7 @@ app.post("/batasan/hapus/:id", requireLogin, async (req, res) => {
 app.post("/generate-jadwal", requireLogin, async (req, res) => {
     try {
         const { tanggalMulai, tanggalAkhir, kecualikan } = req.body;
-        const excludedIds = (kecualikan || []).map(Number); 
+        const excludedIds = (kecualikan || []).map(Number);
 
         if (!tanggalMulai || !tanggalAkhir) {
             return res.status(400).send("Tanggal Mulai dan Tanggal Akhir harus diisi.");
@@ -764,8 +764,30 @@ app.post("/generate-jadwal", requireLogin, async (req, res) => {
 
         // 2. Filter personel yang dikecualikan
         const personelToSchedule = allPersonel.filter(p => !excludedIds.includes(p.id_personel));
-        
-        // 3. Buat 'peta' batasan untuk pencarian cepat
+
+        // 3. Buat array tanggal dalam rentang yang dipilih
+        function getDateRange(start, end) {
+            const arr = [];
+            let dt = new Date(start);
+            const endDt = new Date(end);
+            while (dt <= endDt) {
+                arr.push(dt.toISOString().slice(0, 10));
+                dt.setDate(dt.getDate() + 1);
+            }
+            return arr;
+        }
+        const tanggalArray = getDateRange(tanggalMulai, tanggalAkhir);
+
+        // 4. Buat peta cuti acak per personel (2 hari cuti acak)
+        const cutiAcakMap = new Map();
+        personelToSchedule.forEach(p => {
+            // Pilih 2 tanggal acak dari tanggalArray
+            const shuffled = tanggalArray.slice().sort(() => 0.5 - Math.random());
+            const cutiDates = shuffled.slice(0, 2);
+            cutiAcakMap.set(p.id_personel, cutiDates);
+        });
+
+        // 5. Buat 'peta' batasan untuk pencarian cepat, termasuk cuti acak
         const batasanLookup = new Set();
         batasan.forEach(b => {
             let currentDate = new Date(b.tanggal_mulai);
@@ -776,20 +798,26 @@ app.post("/generate-jadwal", requireLogin, async (req, res) => {
                 currentDate.setDate(currentDate.getDate() + 1);
             }
         });
+        // Tambahkan cuti acak ke batasanLookup
+        for (const [id_personel, cutiDates] of cutiAcakMap.entries()) {
+            cutiDates.forEach(date => {
+                batasanLookup.add(`${id_personel}-${date}`);
+            });
+        }
 
         const posisiNameToIdMap = new Map(posisiKerja.map(p => [p.nama_posisi, p.id_posisi]));
-        
-        // 4. Hapus jadwal lama dalam rentang yang dipilih
+
+        // 6. Hapus jadwal lama dalam rentang yang dipilih
         await pool.query("DELETE FROM jadwal WHERE tanggal_jadwal BETWEEN ? AND ?", [tanggalMulai, tanggalAkhir]);
 
-        // 5. Looping setiap hari untuk membuat jadwal
+        // 7. Looping setiap hari untuk membuat jadwal
         for (let loopDate = new Date(tanggalMulai); loopDate <= new Date(tanggalAkhir); loopDate.setDate(loopDate.getDate() + 1)) {
             const tanggalSQL = toYYYYMMDD(loopDate);
             const dayOfWeek = loopDate.getDay(); // 0=Minggu, 1=Senin, ...
-            
+
             // Peta untuk melacak kuota shift yang sudah terpakai HARI INI
-            const shiftUsageToday = new Map(); 
-            
+            const shiftUsageToday = new Map();
+
             // Filter shift yang aktif pada hari ini
             const shiftsAktifHariIni = shifts.filter(s => s.hari_kerja.split(',').includes(String(dayOfWeek)));
             if (shiftsAktifHariIni.length === 0) continue; // Lanjut ke hari berikutnya jika tidak ada shift
@@ -801,25 +829,25 @@ app.post("/generate-jadwal", requireLogin, async (req, res) => {
                 // Lewati jika personel punya batasan atau tidak bekerja di hari ini
                 if (batasanLookup.has(`${p.id_personel}-${tanggalSQL}`)) continue;
                 if (!p.hari_kerja || !p.hari_kerja.split(',').includes(String(dayOfWeek))) continue;
-                
+
                 // Lewati jika posisi kerja utama tidak valid
                 if (!p.posisi_kerja_utama || !posisiNameToIdMap.has(p.posisi_kerja_utama)) continue;
 
                 // Cari shift yang kuotanya masih tersedia
                 const availableShifts = shiftsAktifHariIni.filter(s => (shiftUsageToday.get(s.id_shift) || 0) < s.kuota);
-                
+
                 if (availableShifts.length > 0) {
                     const randomShift = availableShifts[Math.floor(Math.random() * availableShifts.length)];
                     const idPosisi = posisiNameToIdMap.get(p.posisi_kerja_utama);
-                    
+
                     await pool.query("INSERT INTO jadwal (tanggal_jadwal, id_personel, id_posisi, id_shift, status_jadwal) VALUES (?, ?, ?, ?, 'Otomatis')", [tanggalSQL, p.id_personel, idPosisi, randomShift.id_shift]);
-                    
+
                     // Update Peta Penggunaan Shift untuk hari ini
                     shiftUsageToday.set(randomShift.id_shift, (shiftUsageToday.get(randomShift.id_shift) || 0) + 1);
                 }
             }
         }
-        
+
         res.redirect("/jadwal?status=success&tab=tabel");
     } catch (error) {
         console.error("Error saat generate jadwal acak:", error);
