@@ -29,14 +29,14 @@
             </div>
             
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full table-fixed">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Nama Personel</th>
-                            <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Jatah</th>
-                            <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Terpakai</th>
-                            <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Sisa</th>
-                            <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Aksi</th>
+                            <th class="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[220px]">Nama Personel</th>
+                            <th class="px-4 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[100px]">Jatah</th>
+                            <th class="px-4 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[120px]">Terpakai</th>
+                            <th class="px-4 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[100px]">Sisa</th>
+                            <th class="px-4 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[140px]">Aksi</th>
                         </tr>
                     </thead>
                     <tbody id="cutiTableBody" class="divide-y divide-gray-100">
@@ -44,26 +44,33 @@
                             <% personel.forEach(p => { %>
                                 <% const sisaCuti = p.jatah_cuti - p.cuti_terpakai; %>
                                 <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4">
-                                        <div class="font-medium text-gray-900"><%= p.nama_lengkap %></div>
-                                        <div class="text-sm text-gray-500"><%= p.posisi_kerja_utama %></div>
+                                    <td class="px-4 py-4 w-[220px]">
+                                        <div class="font-medium text-gray-900 truncate"><%= p.nama_lengkap %></div>
+                                        <div class="text-sm text-gray-500 truncate"><%= p.posisi_kerja_utama %></div>
                                     </td>
-                                    <td class="px-6 py-4 text-center font-medium text-gray-700"><%= p.jatah_cuti %></td>
-                                    <td class="px-6 py-4 text-center font-medium text-orange-600"><%= p.cuti_terpakai %></td>
-                                    <td class="px-6 py-4 text-center font-bold text-xl <%= sisaCuti > 5 ? 'text-green-600' : 'text-red-600' %>"><%= sisaCuti %></td>
-                                    <td class="px-6 py-4 text-center whitespace-nowrap">
-                                        <button @click="openEditModal(<%= JSON.stringify(p) %>)" class="font-medium text-indigo-600 hover:underline">
+                                    <td class="px-4 py-4 text-center font-medium text-gray-700 w-[100px]"><%= p.jatah_cuti %></td>
+                                    <td class="px-4 py-4 text-center font-medium text-orange-600 w-[120px]"><%= p.cuti_terpakai %></td>
+                                    <td class="px-4 py-4 text-center font-bold text-xl <%= sisaCuti > 5 ? 'text-green-600' : 'text-red-600' %> w-[100px]"><%= sisaCuti %></td>
+                                    <td class="px-4 py-4 text-center whitespace-nowrap w-[140px]">
+                                        <button @click="openEditModal(<%= JSON.stringify(p) %>)" class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50">
                                             <i class="fas fa-edit mr-1"></i>Koreksi
                                         </button>
                                         <span class="text-gray-300 mx-1">|</span>
-                                        <button @click="openResetOneConfirmModal(<%= JSON.stringify(p) %>)" class="font-medium text-amber-600 hover:underline">
+                                        <button @click="openResetOneConfirmModal(<%= JSON.stringify(p) %>)" class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium text-amber-600 hover:text-amber-800 hover:bg-amber-50">
                                             <i class="fas fa-sync-alt mr-1"></i>Reset
                                         </button>
                                     </td>
                                 </tr>
                             <% }) %>
                         <% } else { %>
-                            <tr><td colspan="5" class="text-center py-12"><div class="flex flex-col items-center"><i class="fas fa-users-slash text-gray-400 text-4xl mb-4"></i><p class="text-gray-500 text-lg">Personel tidak ditemukan.</p></div></td></tr>
+                            <tr>
+                                <td colspan="5" class="text-center py-12">
+                                    <div class="flex flex-col items-center">
+                                        <i class="fas fa-users-slash text-gray-400 text-4xl mb-4"></i>
+                                        <p class="text-gray-500 text-lg">Personel tidak ditemukan.</p>
+                                    </div>
+                                </td>
+                            </tr>
                         <% } %>
                     </tbody>
                 </table>
@@ -156,9 +163,10 @@ document.addEventListener('alpine:init', () => {
                 .then(data => {
                     this.showResetAllConfirmModal = false;
                     if (data.success) {
-                        this.triggerToast(data.message);
-                        this.handleFilterChange();
-                    } else { alert(data.message || 'Gagal mereset data cuti.'); }
+                        this.handleFilterChange(false, () => this.triggerToast(data.message));
+                    } else {
+                        alert(data.message || 'Gagal mereset data cuti.');
+                    }
                 }).catch(err => { console.error('Error:', err); alert('Terjadi kesalahan jaringan.'); });
         },
 
@@ -185,15 +193,17 @@ document.addEventListener('alpine:init', () => {
         },
         // --- AKHIR FUNGSI RESET ---
 
-        handleFilterChange() {
+        handleFilterChange(force = false, callback = null) {
             const searchInput = document.querySelector('#search');
-            const params = new URLSearchParams({ search: searchInput ? searchInput.value : '', page: 1 });
+            const urlParams = new URLSearchParams(window.location.search);
+            const page = urlParams.get('page') || 1;
+            const params = new URLSearchParams({ search: searchInput ? searchInput.value : '', page });
             const url = `/cuti?${params.toString()}`;
             window.history.pushState({ path: url }, '', url);
-            this.fetchAndUpdateTable(url);
+            this.fetchAndUpdateTable(url, callback);
         },
-        debounceHandleFilter() { clearTimeout(this.debounceTimer); this.debounceTimer = setTimeout(() => this.handleFilterChange(), 350); },
-        async fetchAndUpdateTable(url) {
+        
+        async fetchAndUpdateTable(url, callback = null) {
             const container = document.getElementById('table-content-container');
             try {
                 container.style.opacity = '0.5';
@@ -205,6 +215,7 @@ document.addEventListener('alpine:init', () => {
                 if (newContent) {
                     container.innerHTML = newContent.innerHTML;
                 }
+                if (callback) callback();
             } catch (error) { console.error('Error:', error); }
             finally { container.style.opacity = '1'; }
         },

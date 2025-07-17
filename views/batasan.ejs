@@ -24,50 +24,61 @@
     <div class="bg-white rounded-2xl shadow-lg border border-gray-100">
         <div class="p-6 border-b border-gray-100"><div class="flex flex-col md:flex-row justify-between items-center gap-4"><div class="flex items-center"><div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-3"><i class="fas fa-list text-purple-600"></i></div><h4 class="text-xl font-semibold text-gray-800">Daftar Batasan</h4></div><form id="batasanFilterForm" class="flex flex-col sm:flex-row gap-3 w-full md:w-auto"><select @change="handleFilterChange()" name="filterJenis" class="p-2 border border-gray-300 rounded-md"><option value="">Semua Jenis</option><option value="Cuti" <%= query.filterJenis === 'Cuti' ? 'selected' : '' %>>Cuti</option><option value="Sakit" <%= query.filterJenis === 'Sakit' ? 'selected' : '' %>>Sakit</option><option value="Tidak Tersedia" <%= query.filterJenis === 'Tidak Tersedia' ? 'selected' : '' %>>Tidak Tersedia</option></select><input @keyup.debounce.350ms="handleFilterChange()" type="text" name="searchNama" class="p-2 border border-gray-300 rounded-md" value="<%= query.searchNama || '' %>" placeholder="Cari nama..."></form></div></div>
         <div id="table-content-container" @click="handlePaginationClick($event)">
-            <div class="overflow-x-auto"><table class="w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Nama Personel</th><th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Jenis</th><th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Tanggal</th><th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Keterangan</th><th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Aksi</th></tr></thead>
-                <tbody id="batasanTableBody" class="divide-y divide-gray-100">
-    <% if (batasan && batasan.length > 0) { %>
-        <% batasan.forEach(b => { %>
-            <tr class="hover:bg-gray-50 transition-colors">
-                <td class="px-6 py-4">
-                    <div class="flex items-center">
-                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                            <i class="fas fa-user text-blue-600 text-sm"></i>
-                        </div>
-                        <span class="font-medium text-gray-900"><%= b.nama_lengkap %></span>
-                    </div>
-                </td>
-                <td class="px-6 py-4">
-                    <% let badgeClass = 'bg-gray-100 text-gray-800'; %>
-                    <% if (b.jenis_batasan === 'Cuti') { badgeClass = 'bg-blue-100 text-blue-800'; } else if (b.jenis_batasan === 'Sakit') { badgeClass = 'bg-red-100 text-red-800'; } else if (b.jenis_batasan === 'Tidak Tersedia') { badgeClass = 'bg-yellow-100 text-yellow-800'; } %>
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium <%= badgeClass %>">
-                        <%= b.jenis_batasan %>
-                    </span>
-                </td>
-                <td class="px-6 py-4 text-gray-900 whitespace-nowrap">
-                    <%= new Date(b.tanggal_mulai).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) %> - <%= new Date(b.tanggal_akhir).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) %>
-                </td>
-                <td class="px-6 py-4 text-gray-600"><%= b.keterangan || '-' %></td>
-                <td class="px-6 py-4 text-center">
-                    <form :id="'delete-form-' + <%= b.id_batasan %>" action="/batasan/hapus/<%= b.id_batasan %>" method="POST" class="inline-block"></form>
-                    <button type="button" @click="confirmDelete(<%= b.id_batasan %>, '<%= b.nama_lengkap %>')" class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 transition-colors">
-                        <i class="fas fa-trash mr-1"></i>Hapus
-                    </button>
-                </td>
-            </tr>
-        <% }) %>
-    <% } else { %>
-        <tr>
-            <td colspan="5" class="text-center py-12">
-                <div class="flex flex-col items-center">
-                    <i class="fas fa-ban text-gray-400 text-4xl mb-4"></i>
-                    <p class="text-gray-500 text-lg">Tidak ada data batasan.</p>
-                </div>
-            </td>
-        </tr>
-    <% } %>
-</tbody>
-            </table></div>
+            <div class="overflow-x-auto">
+                <table class="w-full table-fixed">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[220px]">Nama Personel</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[120px]">Jenis</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[180px]">Tanggal</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[220px]">Keterangan</th>
+                            <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[120px]">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batasanTableBody" class="divide-y divide-gray-100">
+                        <% if (batasan && batasan.length > 0) { %>
+                            <% batasan.forEach(b => { %>
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-6 py-4 w-[220px] truncate">
+                                        <div class="flex items-center">
+                                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                                                <i class="fas fa-user text-blue-600 text-sm"></i>
+                                            </div>
+                                            <span class="font-medium text-gray-900 truncate"><%= b.nama_lengkap %></span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 w-[120px] truncate">
+                                        <% let badgeClass = 'bg-gray-100 text-gray-800'; %>
+                                        <% if (b.jenis_batasan === 'Cuti') { badgeClass = 'bg-blue-100 text-blue-800'; } else if (b.jenis_batasan === 'Sakit') { badgeClass = 'bg-red-100 text-red-800'; } else if (b.jenis_batasan === 'Tidak Tersedia') { badgeClass = 'bg-yellow-100 text-yellow-800'; } %>
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium <%= badgeClass %>">
+                                            <%= b.jenis_batasan %>
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-gray-900 whitespace-nowrap w-[180px] truncate">
+                                        <%= new Date(b.tanggal_mulai).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) %> - <%= new Date(b.tanggal_akhir).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) %>
+                                    </td>
+                                    <td class="px-6 py-4 text-gray-600 w-[220px] truncate"><%= b.keterangan || '-' %></td>
+                                    <td class="px-6 py-4 text-center w-[120px]">
+                                        <form :id="'delete-form-' + <%= b.id_batasan %>" action="/batasan/hapus/<%= b.id_batasan %>" method="POST" class="inline-block"></form>
+                                        <button type="button" @click="confirmDelete(<%= b.id_batasan %>, '<%= b.nama_lengkap %>')" class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 transition-colors">
+                                            <i class="fas fa-trash mr-1"></i>Hapus
+                                        </button>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        <% } else { %>
+                            <tr>
+                                <td colspan="5" class="text-center py-12">
+                                    <div class="flex flex-col items-center">
+                                        <i class="fas fa-ban text-gray-400 text-4xl mb-4"></i>
+                                        <p class="text-gray-500 text-lg">Tidak ada data batasan.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+        </div>
             <div class="p-6 border-t border-gray-100 flex justify-center" id="paginationContainer"><% if (totalPages > 1) { %><nav class="inline-flex rounded-md shadow-sm -space-x-px"><% const params = new URLSearchParams(query); %><% if (currentPage > 1) { %><% params.set('page', currentPage - 1); %><a href="/batasan?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">&laquo;</a><% } %><% for(let i = 1; i <= totalPages; i++) { %><% params.set('page', i); %><% if (i === currentPage) { %><span class="pagination-link relative z-10 inline-flex items-center px-4 py-2 border border-red-500 bg-red-50 text-sm font-medium text-red-600"><%= i %></span><% } else { %><a href="/batasan?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><%= i %></a><% } %><% } %><% if (currentPage < totalPages) { %><% params.set('page', currentPage + 1); %><a href="/batasan?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">&raquo;</a><% } %></nav><% } %></div>
         </div>
     </div>

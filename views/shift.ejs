@@ -1,7 +1,7 @@
 <%- include('partials/header') %>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-
-<% const days = {1:'Sen', 2:'Sel', 3:'Rab', 4:'Kam', 5:'Jum', 6:'Sab', 0:'Min'}; %>
+                    <% const days = {1:'Sen', 2:'Sel', 3:'Rab', 4:'Kam', 5:'Jum', 6:'Sab', 0:'Min'}; %>
+                    <% const dayOrder = ['1','2','3','4','5','6','0']; %>
 
 <div x-data="shiftController()" x-init="init()">
     <div x-show="toast.visible" x-transition x-cloak class="fixed top-24 right-8 z-50 bg-white border-l-4 rounded-lg shadow-2xl p-4 flex items-center" :class="{ 'border-green-500': toast.type === 'success', 'border-red-500': toast.type === 'error' }">
@@ -33,11 +33,20 @@
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Hari Kerja</label>
+                        <button type="button"
+                            class="mb-2 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                            @click="
+                                addFormData.hari_kerja.length === 7
+                                    ? addFormData.hari_kerja = []
+                                    : addFormData.hari_kerja = ['1','2','3','4','5','6','0']
+                            "
+                            x-text="addFormData.hari_kerja.length === 7 ? 'Kosongkan Semua' : 'Centang Semua'">
+                        </button>
                         <div class="grid grid-cols-4 gap-2 text-sm">
-                            <% Object.entries(days).forEach(([value, label]) => { %>
+                            <% dayOrder.forEach(value => { %>
                                 <label class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 cursor-pointer">
                                     <input type="checkbox" name="hari_kerja_add" value="<%= value %>" x-model="addFormData.hari_kerja" class="rounded text-indigo-600 focus:ring-indigo-500">
-                                    <span><%= label %></span>
+                                    <span><%= days[value] %></span>
                                 </label>
                             <% }) %>
                         </div>
@@ -63,43 +72,68 @@
                         </div>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full">
+                        <table class="w-full table-fixed">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Nama Shift</th>
-                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Kuota</th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Hari Kerja</th>
-                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Aksi</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[220px]">Nama Shift</th>
+                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[100px]">Kuota</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[220px]">Hari Kerja</th>
+                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[140px]">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
                                 <% if (shifts && shifts.length > 0) { %>
                                     <% shifts.forEach(s => { %>
                                         <tr class="hover:bg-gray-50">
-                                            <td class="px-6 py-4 font-medium"><%= s.nama_shift %></td>
-                                            <td class="px-6 py-4 text-center font-bold text-lg text-gray-700"><%= s.kuota %></td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-6 py-4 font-medium w-[220px] truncate"><%= s.nama_shift %></td>
+                                            <td class="px-6 py-4 text-center font-bold text-lg text-gray-700 w-[100px] truncate"><%= s.kuota %></td>
+                                            <td class="px-6 py-4 w-[220px] truncate">
                                                 <% s.hari_kerja.split(',').sort().forEach(day => { %>
                                                     <span class="inline-block bg-gray-200 text-gray-800 text-xs font-semibold mr-1 px-2.5 py-1 rounded-full">
                                                         <%= days[day] || '?' %>
                                                     </span>
                                                 <% }) %>
                                             </td>
-                                            <td class="px-6 py-4 text-center whitespace-nowrap">
+                                            <td class="px-6 py-4 text-center whitespace-nowrap w-[140px]">
                                                 <button @click="openEditModal(<%= s.id_shift %>)" class="font-medium text-indigo-600 hover:underline">Edit</button>
                                                 <span class="mx-2 text-gray-300">|</span>
                                                 <button @click="openDeleteConfirmModal(<%= s.id_shift %>, '<%= s.nama_shift %>')" type="button" class="font-medium text-red-600 hover:underline">Hapus</button>
-                                                <form :id="'deleteForm-' + <%= s.id_shift %>" action="/shift/hapus/<%= s.id_shift %>" method="POST" class="hidden"></form>
+                                                <form :id="'deleteForm-' + <%= s.id_shift %>" action="/shift/hapus/<%= s.id_shift %>?page=<%= currentPage %><%= query.search ? '&search=' + encodeURIComponent(query.search) : '' %>" method="POST" class="hidden"></form>
                                             </td>
                                         </tr>
                                     <% }) %>
                                 <% } else { %>
-                                    <tr><td colspan="4" class="text-center py-12"><p class="text-gray-500">Tidak ada data shift.</p></td></tr>
+                                    <tr>
+                                        <td colspan="4" class="text-center py-12"><p class="text-gray-500">Tidak ada data shift.</p></td>
+                                    </tr>
                                 <% } %>
                             </tbody>
                         </table>
                     </div>
                     <div class="p-4 flex justify-center" id="paginationContainer">
+                                                <div class="p-4 flex justify-center" id="paginationContainer">
+                            <% if (totalPages > 1) { %>
+                                <nav class="inline-flex rounded-md shadow-sm -space-x-px">
+                                    <% const params = new URLSearchParams(query); %>
+                                    <% if (currentPage > 1) { %>
+                                        <% params.set('page', currentPage - 1); %>
+                                        <a href="/shift?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">&laquo;</a>
+                                    <% } %>
+                                    <% for(let i = 1; i <= totalPages; i++) { %>
+                                        <% params.set('page', i); %>
+                                        <% if (i === currentPage) { %>
+                                            <span class="pagination-link relative z-10 inline-flex items-center px-4 py-2 border border-blue-500 bg-blue-50 text-sm font-medium text-blue-600"><%= i %></span>
+                                        <% } else { %>
+                                            <a href="/shift?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><%= i %></a>
+                                        <% } %>
+                                    <% } %>
+                                    <% if (currentPage < totalPages) { %>
+                                        <% params.set('page', currentPage + 1); %>
+                                        <a href="/shift?<%= params.toString() %>" class="pagination-link relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">&raquo;</a>
+                                    <% } %>
+                                </nav>
+                            <% } %>
+                        </div>
                         </div>
                 </div>
             </div>
@@ -125,11 +159,20 @@
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Hari Kerja</label>
+                        <button type="button"
+                            class="mb-2 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                            @click="
+                                editFormData.hari_kerja.length === 7
+                                    ? editFormData.hari_kerja = []
+                                    : editFormData.hari_kerja = ['1','2','3','4','5','6','0']
+                            "
+                            x-text="editFormData.hari_kerja.length === 7 ? 'Kosongkan Semua' : 'Centang Semua'">
+                        </button>
                         <div class="grid grid-cols-4 gap-2 text-sm">
-                            <% Object.entries(days).forEach(([value, label]) => { %>
+                            <% dayOrder.forEach(value => { %>
                                 <label class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 cursor-pointer">
                                     <input type="checkbox" name="hari_kerja_edit" value="<%= value %>" x-model="editFormData.hari_kerja" class="rounded text-indigo-600 focus:ring-indigo-500">
-                                    <span><%= label %></span>
+                                    <span><%= days[value] %></span>
                                 </label>
                             <% }) %>
                         </div>
@@ -295,18 +338,14 @@ document.addEventListener('alpine:init', () => {
             clearTimeout(this.debounceTimer);
             const action = () => {
                 const searchInput = document.getElementById('search');
-                const params = new URLSearchParams({
-                    search: searchInput.value || '',
-                    page: 1
-                });
+                const urlParams = new URLSearchParams(window.location.search);
+                const page = urlParams.get('page') || 1;
+                const params = new URLSearchParams({ search: searchInput.value || '', page });
                 const url = `/shift?${params.toString()}`;
-
-                window.history.pushState({
-                    path: url
-                }, '', url);
+                window.history.pushState({ path: url }, '', url);
                 this.fetchAndUpdateTable(url);
             };
-
+        
             if (force) {
                 action();
             } else {

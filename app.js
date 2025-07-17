@@ -31,7 +31,7 @@ const pool = mysql.createPool({
     host: "localhost",
     user: "root",
     password: "",
-    database: "penjadwalan_perpusjkt",
+    database: "penjadwalan_perpusjkt1",
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
@@ -42,7 +42,7 @@ const sessionStore = new MySQLStore({
     host: "localhost",
     user: "root",
     password: "",
-    database: "penjadwalan_perpusjkt",
+    database: "penjadwalan_perpusjkt1",
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
@@ -586,10 +586,25 @@ app.post("/personel/hapus/:id", requireLogin, async (req, res) => {
         await pool.query("DELETE FROM personel WHERE id_personel = ?", [personelId]);
         // Logging aktivitas admin
         await logAdminAction(req, 'DELETE', 'personel', personelId, `Hapus personel: ${personel ? personel.nama_lengkap : ''}`);
-        res.redirect('/personel?status=hapus_sukses');
+
+        // Ambil parameter filter & page dari query agar redirect tetap di halaman & filter yang sama
+        const page = req.query.page ? `&page=${req.query.page}` : '';
+        const searchNama = req.query.searchNama ? `&searchNama=${encodeURIComponent(req.query.searchNama)}` : '';
+        const filterTipe = req.query.filterTipe ? `&filterTipe=${encodeURIComponent(req.query.filterTipe)}` : '';
+        const filterPosisi = req.query.filterPosisi ? `&filterPosisi=${encodeURIComponent(req.query.filterPosisi)}` : '';
+        const filterShift = req.query.filterShift ? `&filterShift=${encodeURIComponent(req.query.filterShift)}` : '';
+
+        res.redirect(`/personel?status=hapus_sukses${page}${searchNama}${filterTipe}${filterPosisi}${filterShift}`);
     } catch (error) {
         console.error(error);
-        res.redirect('/personel?status=gagal');
+
+        const page = req.query.page ? `&page=${req.query.page}` : '';
+        const searchNama = req.query.searchNama ? `&searchNama=${encodeURIComponent(req.query.searchNama)}` : '';
+        const filterTipe = req.query.filterTipe ? `&filterTipe=${encodeURIComponent(req.query.filterTipe)}` : '';
+        const filterPosisi = req.query.filterPosisi ? `&filterPosisi=${encodeURIComponent(req.query.filterPosisi)}` : '';
+        const filterShift = req.query.filterShift ? `&filterShift=${encodeURIComponent(req.query.filterShift)}` : '';
+
+        res.redirect(`/personel?status=gagal${page}${searchNama}${filterTipe}${filterPosisi}${filterShift}`);
     }
 });
 
@@ -1010,11 +1025,15 @@ app.post('/api/shift/update/:id', requireLogin, async (req, res) => {
 
         // PERBAIKAN: Gabungkan array hari kerja menjadi string
         const hariKerjaString = hari_kerja.join(',');
-        
+
         await pool.query(
             "UPDATE shift SET nama_shift = ?, kuota = ?, hari_kerja = ? WHERE id_shift = ?", 
             [nama_shift, kuota, hariKerjaString, req.params.id]
         );
+
+        // Tambahkan log admin di sini
+        await logAdminAction(req, 'UPDATE', 'shift', req.params.id, `Edit shift: ${nama_shift}, kuota: ${kuota}, hari_kerja: ${hariKerjaString}`);
+
         res.json({ success: true, message: 'Shift berhasil diperbarui' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Gagal memperbarui shift' });
@@ -1036,10 +1055,14 @@ app.post("/api/shift/tambah", requireLogin, async (req, res) => {
             return res.status(409).json({ success: false, message: 'Nama shift sudah tersedia.' });
         }
 
-        // PERBAIKAN: Gabungkan array hari kerja menjadi string
+        // Gabungkan array hari kerja menjadi string
         const hariKerjaString = hari_kerja.join(',');
 
-        await pool.query("INSERT INTO shift (nama_shift, kuota, hari_kerja) VALUES (?, ?, ?)", [nama_shift.trim(), kuota, hariKerjaString]);
+        const [result] = await pool.query("INSERT INTO shift (nama_shift, kuota, hari_kerja) VALUES (?, ?, ?)", [nama_shift.trim(), kuota, hariKerjaString]);
+        
+        // Tambahkan log admin di sini
+        await logAdminAction(req, 'CREATE', 'shift', result.insertId, `Tambah shift: ${nama_shift}, kuota: ${kuota}, hari_kerja: ${hariKerjaString}`);
+
         res.json({ success: true, message: 'Shift baru berhasil ditambahkan!' });
     } catch (error) {
         console.error("Gagal menambah shift:", error);
@@ -1053,16 +1076,20 @@ app.post("/api/shift/tambah", requireLogin, async (req, res) => {
 app.post("/shift/hapus/:id", requireLogin, async (req, res) => {
     try {
         const shiftId = req.params.id;
+        const page = req.query.page ? `&page=${req.query.page}` : '';
+        const search = req.query.search ? `&search=${encodeURIComponent(req.query.search)}` : '';
         await pool.query("DELETE FROM shift WHERE id_shift = ?", [shiftId]);
-        // await logAdminAction(req, 'DELETE', 'shift', shiftId, `Hapus shift id: ${shiftId}`);
-        res.json({ success: true, message: 'Shift berhasil dihapus.' });
+        // Tambahkan log admin di sini
+        await logAdminAction(req, 'DELETE', 'shift', shiftId, `Hapus shift id: ${shiftId}`);
+        res.redirect(`/shift?status=hapus_sukses${page}${search}`);
     } catch (error) {
         let msg = 'Gagal menghapus shift.';
-        // Cek error MySQL jika karena constraint foreign key
         if (error && error.code === 'ER_ROW_IS_REFERENCED_2') {
             msg = 'Shift tidak bisa dihapus karena masih digunakan pada jadwal.';
         }
-        res.status(500).json({ success: false, message: msg });
+        const page = req.query.page ? `&page=${req.query.page}` : '';
+        const search = req.query.search ? `&search=${encodeURIComponent(req.query.search)}` : '';
+        res.redirect(`/shift?status=gagal_hapus&pesan=${encodeURIComponent(msg)}${page}${search}`);
     }
 });
 // Rute untuk menampilkan halaman manajemen posisi kerja
@@ -1124,39 +1151,6 @@ app.post('/api/posisi/update/:id', requireLogin, async (req, res) => {
 
 
 // Rute untuk PROSES MENAMBAH posisi kerja baru
-// Ganti rute POST /posisi/tambah yang lama dengan versi ini
-app.post("/posisi/tambah", requireLogin, async (req, res) => {
-    try {
-        const { nama_posisi } = req.body;
-
-        // Validasi 1: Pastikan input tidak kosong
-        if (!nama_posisi || nama_posisi.trim() === '') {
-            return res.status(400).json({ success: false, message: 'Nama posisi tidak boleh kosong.' });
-        }
-
-        // --- VALIDASI BARU: Cek duplikat ---
-        const checkQuery = "SELECT COUNT(*) as count FROM posisi_kerja WHERE nama_posisi = ?";
-        const [[{ count }]] = await pool.query(checkQuery, [nama_posisi.trim()]);
-
-        if (count > 0) {
-            // Jika sudah ada, kirim pesan error spesifik dengan status 409 (Conflict)
-            return res.status(409).json({ 
-                success: false, 
-                message: 'Posisi sudah tersedia, silakan masukan posisi yang lain.' 
-            });
-        }
-        // --- AKHIR VALIDASI BARU ---
-
-        // Jika tidak ada duplikat, lanjutkan proses INSERT
-        await pool.query("INSERT INTO posisi_kerja (nama_posisi) VALUES (?)", [nama_posisi.trim()]);
-        await logAdminAction(req, 'CREATE', 'posisi_kerja', null, `Tambah posisi: ${nama_posisi}`);
-        res.json({ success: true, message: 'Posisi baru berhasil ditambahkan!' });
-
-    } catch (error) {
-        console.error("Gagal menambah posisi:", error);
-        res.status(500).json({ success: false, message: 'Terjadi kesalahan di server.' });
-    }
-});
 app.post("/api/posisi/tambah", requireLogin, async (req, res) => {
     try {
         const { nama_posisi, hari_kerja } = req.body;
@@ -1181,8 +1175,14 @@ app.post("/api/posisi/tambah", requireLogin, async (req, res) => {
         const hariKerjaString = hari_kerja.join(',');
 
         // Jika tidak ada duplikat, lanjutkan proses INSERT
-        await pool.query("INSERT INTO posisi_kerja (nama_posisi, hari_kerja) VALUES (?, ?)", [nama_posisi.trim(), hariKerjaString]);
-        
+        const [result] = await pool.query(
+            "INSERT INTO posisi_kerja (nama_posisi, hari_kerja) VALUES (?, ?)", 
+            [nama_posisi.trim(), hariKerjaString]
+        );
+
+        // Tambahkan log admin di sini
+        await logAdminAction(req, 'CREATE', 'posisi_kerja', result.insertId, `Tambah posisi: ${nama_posisi}, hari_kerja: ${hariKerjaString}`);
+
         res.json({ success: true, message: 'Posisi baru berhasil ditambahkan!' });
 
     } catch (error) {
@@ -1196,23 +1196,24 @@ app.post("/api/posisi/tambah", requireLogin, async (req, res) => {
 app.post("/posisi/hapus/:id", requireLogin, async (req, res) => {
     try {
         const idPosisi = req.params.id;
+        const page = req.query.page ? `&page=${req.query.page}` : '';
+        const search = req.query.search ? `&search=${encodeURIComponent(req.query.search)}` : '';
         // Cek apakah posisi masih digunakan di jadwal
         const [[{ count }]] = await pool.query(
             "SELECT COUNT(*) as count FROM jadwal WHERE id_posisi = ?", [idPosisi]
         );
         if (count > 0) {
-            // Jika masih dipakai, kirim error JSON
-            return res.status(400).json({
-                success: false,
-                message: 'Posisi tidak bisa dihapus karena masih digunakan pada jadwal.'
-            });
+            // Jika masih dipakai, redirect dengan pesan error
+            return res.redirect(`/posisi?status=gagal_hapus&pesan=${encodeURIComponent('Posisi tidak bisa dihapus karena masih digunakan pada jadwal.')}${page}${search}`);
         }
         await pool.query("DELETE FROM posisi_kerja WHERE id_posisi = ?", [idPosisi]);
         await logAdminAction(req, 'DELETE', 'posisi_kerja', idPosisi, `Hapus posisi id: ${idPosisi}`);
-        res.json({ success: true, message: 'Posisi berhasil dihapus.' });
+        res.redirect(`/posisi?status=hapus_sukses${page}${search}`);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: 'Gagal menghapus posisi.' });
+        const page = req.query.page ? `&page=${req.query.page}` : '';
+        const search = req.query.search ? `&search=${encodeURIComponent(req.query.search)}` : '';
+        res.redirect(`/posisi?status=gagal_hapus&pesan=${encodeURIComponent('Gagal menghapus posisi.')}${page}${search}`);
     }
 });
 

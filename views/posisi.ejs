@@ -27,8 +27,18 @@
                         <label class="block text-sm font-semibold text-gray-700 mb-2" for="add_nama_posisi">Nama Posisi</label>
                         <input type="text" id="add_nama_posisi" x-model="addFormData.nama_posisi" class="w-full px-4 py-3 border border-gray-200 rounded-xl" placeholder="Contoh: Layanan Sirkulasi" required>
                     </div>
+                    <!-- Untuk form tambah posisi -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Hari Kerja</label>
+                        <button type="button"
+                            class="mb-2 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                            @click="
+                                addFormData.hari_kerja.length === 7
+                                    ? addFormData.hari_kerja = []
+                                    : addFormData.hari_kerja = ['1','2','3','4','5','6','0']
+                            "
+                            x-text="addFormData.hari_kerja.length === 7 ? 'Kosongkan Semua' : 'Centang Semua'">
+                        </button>
                         <div class="grid grid-cols-4 gap-2 text-sm">
                             <% Object.entries(days).forEach(([value, label]) => { %>
                                 <label class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 cursor-pointer">
@@ -59,36 +69,40 @@
                         </div>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full">
+                        <table class="w-full table-fixed">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Nama Posisi</th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Hari Kerja</th>
-                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">Aksi</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[260px]">Nama Posisi</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[220px]">Hari Kerja</th>
+                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[140px]">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
                                 <% if (posisi && posisi.length > 0) { %>
                                     <% posisi.forEach(p => { %>
                                         <tr class="hover:bg-gray-50">
-                                            <td class="px-6 py-4 font-medium"><%= p.nama_posisi %></td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-6 py-4 font-medium w-[260px] truncate"><%= p.nama_posisi %></td>
+                                            <td class="px-6 py-4 w-[220px] truncate">
                                                 <% p.hari_kerja.split(',').sort().forEach(day => { %>
                                                     <span class="inline-block bg-gray-200 text-gray-800 text-xs font-semibold mr-1 px-2.5 py-1 rounded-full">
                                                         <%= days[day] || '?' %>
                                                     </span>
                                                 <% }) %>
                                             </td>
-                                            <td class="px-6 py-4 text-center whitespace-nowrap">
+                                            <td class="px-6 py-4 text-center whitespace-nowrap w-[140px]">
                                                 <button @click="openEditModal(<%= p.id_posisi %>)" class="font-medium text-indigo-600 hover:underline">Edit</button>
                                                 <span class="mx-2 text-gray-300">|</span>
                                                 <button @click="openDeleteConfirmModal(<%= p.id_posisi %>, '<%= p.nama_posisi %>')" type="button" class="font-medium text-red-600 hover:underline">Hapus</button>
-                                                <form :id="'deleteForm-' + <%= p.id_posisi %>" action="/posisi/hapus/<%= p.id_posisi %>" method="POST" class="hidden"></form>
+                                                <form :id="'deleteForm-' + <%= p.id_posisi %>" action="/posisi/hapus/<%= p.id_posisi %>?page=<%= currentPage %><%= query.search ? '&search=' + encodeURIComponent(query.search) : '' %>" method="POST" class="hidden"></form>
                                             </td>
                                         </tr>
                                     <% }) %>
                                 <% } else { %>
-                                    <tr><td colspan="3" class="text-center py-12"><p class="text-gray-500">Tidak ada data posisi.</p></td></tr>
+                                    <tr>
+                                        <td colspan="3" class="text-center py-12">
+                                            <p class="text-gray-500">Tidak ada data posisi.</p>
+                                        </td>
+                                    </tr>
                                 <% } %>
                             </tbody>
                         </table>
@@ -134,8 +148,18 @@
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Nama Posisi</label>
                         <input type="text" x-model="editFormData.nama_posisi" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
                     </div>
+                    <!-- Untuk form edit posisi -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Hari Kerja</label>
+                        <button type="button"
+                            class="mb-2 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                            @click="
+                                editFormData.hari_kerja.length === 7
+                                    ? editFormData.hari_kerja = []
+                                    : editFormData.hari_kerja = ['1','2','3','4','5','6','0']
+                            "
+                            x-text="editFormData.hari_kerja.length === 7 ? 'Kosongkan Semua' : 'Centang Semua'">
+                        </button>
                         <div class="grid grid-cols-4 gap-2 text-sm">
                             <% Object.entries(days).forEach(([value, label]) => { %>
                                 <label class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 cursor-pointer">
@@ -171,6 +195,7 @@
 </div>
 
 <script>
+// filepath: e:\PROJEK_PERPUSJKT\sistem_penjadwalanperpusjkt\views\posisi.ejs
 document.addEventListener('alpine:init', () => {
     Alpine.data('posisiController', () => ({
         showEditModal: false,
@@ -182,8 +207,24 @@ document.addEventListener('alpine:init', () => {
         itemToDelete: { id: null, name: '' },
 
         init() {
-            // ... (logika notifikasi dari URL)
+            // Ambil status dari query string
+            const params = new URLSearchParams(window.location.search);
+            const status = params.get('status');
+            const pesan = params.get('pesan');
+
+            if (status === 'hapus_sukses') {
+                this.triggerToast('Posisi berhasil dihapus!', 'success');
+                params.delete('status');
+                window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+            }
+            if (status === 'gagal_hapus') {
+                this.triggerToast(pesan || 'Gagal menghapus posisi.', 'error');
+                params.delete('status');
+                params.delete('pesan');
+                window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+            }
         },
+
         triggerToast(message, type = 'success') {
             this.toast.message = message;
             this.toast.type = type;
@@ -200,8 +241,7 @@ document.addEventListener('alpine:init', () => {
                 })
                 .catch(e => console.error('Gagal memuat data posisi:', e));
         },
-        
-        // --- PERBAIKAN LOGIKA REAL-TIME UPDATE ---
+
         submitAddForm() {
             fetch('/api/posisi/tambah', {
                 method: 'POST',
@@ -213,7 +253,7 @@ document.addEventListener('alpine:init', () => {
                 if (data.success) {
                     this.triggerToast(data.message, 'success');
                     this.addFormData = { nama_posisi: '', hari_kerja: ['1','2','3','4','5'] };
-                    this.handleFilterChange(true); // Langsung refresh tabel
+                    this.handleFilterChange(true);
                 } else {
                     this.triggerToast(data.message, 'error');
                 }
@@ -231,13 +271,12 @@ document.addEventListener('alpine:init', () => {
                 if (data.success) {
                     this.showEditModal = false;
                     this.triggerToast(data.message, 'success');
-                    this.handleFilterChange(true); // Langsung refresh tabel
+                    this.handleFilterChange(true);
                 } else {
                     this.triggerToast(data.message, 'error');
                 }
             }).catch(() => this.triggerToast('Terjadi kesalahan jaringan.', 'error'));
         },
-        // --- AKHIR PERBAIKAN ---
 
         openDeleteConfirmModal(id, name) {
             this.itemToDelete = { id, name };
@@ -248,25 +287,27 @@ document.addEventListener('alpine:init', () => {
             const form = document.getElementById(`deleteForm-${this.itemToDelete.id}`);
             if (form) form.submit();
         },
-        
+
         handleFilterChange(force = false) {
             clearTimeout(this.debounceTimer);
             const action = () => {
                 const searchInput = document.getElementById('search');
-                const params = new URLSearchParams({ search: searchInput.value || '', page: 1 });
+                // Ambil page dari URL, default 1 jika tidak ada
+                const urlParams = new URLSearchParams(window.location.search);
+                const page = urlParams.get('page') || 1;
+                const params = new URLSearchParams({ search: searchInput.value || '', page });
                 const url = `/posisi?${params.toString()}`;
-                
                 window.history.pushState({ path: url }, '', url);
                 this.fetchAndUpdateTable(url);
             };
-
+        
             if (force) {
                 action();
             } else {
                 this.debounceTimer = setTimeout(action, 350);
             }
         },
-        
+
         async fetchAndUpdateTable(url) {
             const container = document.getElementById('table-content-container');
             try {

@@ -38,22 +38,23 @@
 
     <!-- Table -->
     <div class="bg-white rounded-2xl shadow-lg overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200 text-sm">
+      <table class="w-full table-fixed divide-y divide-gray-200 text-sm">
         <thead class="bg-gradient-to-r from-blue-50 to-indigo-100">
           <tr>
-            <th class="px-5 py-3 text-left font-semibold text-gray-700">No</th>
-            <th class="px-5 py-3 text-left font-semibold text-gray-700">Waktu</th>
-            <th class="px-5 py-3 text-left font-semibold text-gray-700">Username</th>
-            <th class="px-5 py-3 text-left font-semibold text-gray-700">Aksi</th>
-            <th class="px-5 py-3 text-left font-semibold text-gray-700">Tabel</th>
-            <th class="px-5 py-3 text-left font-semibold text-gray-700">ID Record</th>
-            <th class="px-5 py-3 text-left font-semibold text-gray-700">Keterangan</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700 w-[60px]">No</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700 w-[160px]">Waktu</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700 w-[140px]">Username</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700 w-[100px]">Aksi</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700 w-[140px]">Tabel</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700 w-[100px]">ID Record</th>
+            <th class="px-5 py-3 text-left font-semibold text-gray-700 w-[320px]">Keterangan</th>
+            <th class="px-5 py-3 text-center font-semibold text-gray-700 w-[60px]">Detail</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-100">
           <% if (logs.length === 0) { %>
             <tr>
-              <td colspan="7" class="text-center py-10 text-gray-400">
+              <td colspan="8" class="text-center py-10 text-gray-400">
                 <i class="fas fa-info-circle text-2xl mb-2"></i><br>
                 Belum ada aktivitas
               </td>
@@ -61,10 +62,10 @@
           <% } %>
           <% logs.forEach(function(log, idx) { %>
             <tr class="hover:bg-blue-50 transition">
-              <td class="px-5 py-3"><%= (currentPage - 1) * 10 + idx + 1 %></td>
-              <td class="px-5 py-3 whitespace-nowrap"><%= log.created_at.toLocaleString('id-ID') %></td>
-              <td class="px-5 py-3"><span class="inline-flex items-center gap-2"><i class="fas fa-user text-blue-400"></i> <%= log.username %></span></td>
-              <td class="px-5 py-3">
+              <td class="px-5 py-3 w-[60px] truncate"><%= (currentPage - 1) * 10 + idx + 1 %></td>
+              <td class="px-5 py-3 w-[160px] whitespace-nowrap truncate"><%= log.created_at.toLocaleString('id-ID') %></td>
+              <td class="px-5 py-3 w-[140px] truncate"><span class="inline-flex items-center gap-2"><i class="fas fa-user text-blue-400"></i> <%= log.username %></span></td>
+              <td class="px-5 py-3 w-[100px] truncate">
                 <span class="inline-block px-2 py-1 rounded text-xs font-semibold
                   <% if(log.action === 'CREATE') { %> bg-green-100 text-green-700 <% }
                      else if(log.action === 'UPDATE') { %> bg-yellow-100 text-yellow-700 <% }
@@ -73,43 +74,149 @@
                   <%= log.action %>
                 </span>
               </td>
-              <td class="px-5 py-3"><%= log.table_name %></td>
-              <td class="px-5 py-3"><%= log.record_id || '-' %></td>
-              <td class="px-5 py-3"><%= log.description %></td>
+              <td class="px-5 py-3 w-[140px] truncate"><%= log.table_name %></td>
+              <td class="px-5 py-3 w-[100px] truncate"><%= log.record_id || '-' %></td>
+              <td class="px-5 py-3 w-[320px] truncate">
+                <span><%= log.description %></span>
+              </td>
+              <td class="px-5 py-3 w-[60px] text-center">
+                <button type="button"
+                  class="text-blue-600 hover:text-blue-800"
+                  title="Lihat Detail"
+                  onclick="showDetailModal(<%= idx %>)">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <script>
+                  window.detailLogs = window.detailLogs || [];
+                  window.detailLogs[<%= idx %>] = {
+                    no: "<%= (currentPage - 1) * 10 + idx + 1 %>",
+                    waktu: "<%= log.created_at.toLocaleString('id-ID') %>",
+                    username: "<%= log.username.replace(/\"/g, '&quot;') %>",
+                    action: "<%= log.action %>",
+                    table: "<%= log.table_name.replace(/\"/g, '&quot;') %>",
+                    record: "<%= log.record_id || '-' %>",
+                    description: `<%= log.description.replace(/`/g, '\\`').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\r?\n/g, '<br>') %>`
+                  };
+                </script>
+              </td>
             </tr>
           <% }) %>
         </tbody>
       </table>
     </div>
 
+<!-- Modal Detail -->
+<div id="detailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display:none;">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-0 relative border border-blue-200">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-blue-100 rounded-t-2xl bg-gradient-to-r from-blue-50 to-indigo-100">
+      <div class="flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100">
+          <i class="fas fa-eye text-blue-600 text-xl"></i>
+        </span>
+        <h2 class="text-lg font-bold text-gray-800">Detail Riwayat Aktivitas</h2>
+      </div>
+      <button onclick="closeDetailModal()" class="text-2xl text-gray-400 hover:text-gray-700">&times;</button>
+    </div>
+    <div id="detailModalContent" class="px-6 py-5 text-gray-700 text-sm space-y-3">
+      <!-- Content diisi via JS -->
+    </div>
+  </div>
+</div>
+
     <!-- Pagination -->
     <div class="flex justify-center mt-8">
       <% if (totalPages > 1) { %>
-        <nav class="inline-flex rounded-md shadow-sm -space-x-px">
+        <nav class="inline-flex rounded-lg shadow bg-white border border-gray-200 overflow-hidden">
           <% 
             let params = new URLSearchParams(query);
             params.delete('page');
+            let maxShow = 2;
+            let start = Math.max(1, currentPage - maxShow);
+            let end = Math.min(totalPages, currentPage + maxShow);
           %>
           <% if (currentPage > 1) { %>
             <% params.set('page', currentPage - 1); %>
-            <a href="?<%= params.toString() %>" class="px-3 py-2 border rounded-l bg-white text-gray-700 hover:bg-blue-50">&laquo;</a>
+            <a href="?<%= params.toString() %>" class="px-3 py-2 text-gray-500 hover:bg-blue-50 transition font-semibold border-r border-gray-200">&laquo;</a>
           <% } %>
-          <% for(let i = 1; i <= totalPages; i++) { %>
+          <% if (start > 1) { %>
+            <% params.set('page', 1); %>
+            <a href="?<%= params.toString() %>" class="px-3 py-2 text-gray-700 hover:bg-blue-100 transition font-semibold border-r border-gray-200">1</a>
+            <% if (start > 2) { %>
+              <span class="px-3 py-2 text-gray-400 bg-white border-r border-gray-200">...</span>
+            <% } %>
+          <% } %>
+          <% for(let i = start; i <= end; i++) { %>
             <% params.set('page', i); %>
             <% if (i === currentPage) { %>
-              <span class="px-3 py-2 border bg-blue-600 text-white font-bold"><%= i %></span>
+              <span class="px-3 py-2 bg-blue-600 text-white font-bold border-r border-gray-200 shadow-inner transition"><%= i %></span>
             <% } else { %>
-              <a href="?<%= params.toString() %>" class="px-3 py-2 border bg-white text-gray-700 hover:bg-blue-50"><%= i %></a>
+              <a href="?<%= params.toString() %>" class="px-3 py-2 text-gray-700 hover:bg-blue-100 transition font-semibold border-r border-gray-200"><%= i %></a>
             <% } %>
+          <% } %>
+          <% if (end < totalPages) { %>
+            <% if (end < totalPages - 1) { %>
+              <span class="px-3 py-2 text-gray-400 bg-white border-r border-gray-200">...</span>
+            <% } %>
+            <% params.set('page', totalPages); %>
+            <a href="?<%= params.toString() %>" class="px-3 py-2 text-gray-700 hover:bg-blue-100 transition font-semibold border-r border-gray-200"><%= totalPages %></a>
           <% } %>
           <% if (currentPage < totalPages) { %>
             <% params.set('page', currentPage + 1); %>
-            <a href="?<%= params.toString() %>" class="px-3 py-2 border rounded-r bg-white text-gray-700 hover:bg-blue-50">&raquo;</a>
+            <a href="?<%= params.toString() %>" class="px-3 py-2 text-gray-500 hover:bg-blue-50 transition font-semibold">&raquo;</a>
           <% } %>
         </nav>
       <% } %>
     </div>
   </div>
 </div>
+
+<script>
+function showDetailModal(idx) {
+  const modal = document.getElementById('detailModal');
+  const content = document.getElementById('detailModalContent');
+  if (window.detailLogs && window.detailLogs[idx]) {
+    const d = window.detailLogs[idx];
+    content.innerHTML = `
+      <div class="grid grid-cols-3 gap-y-2 gap-x-3">
+        <div class="font-semibold text-gray-600">No</div>
+        <div class="col-span-2">${d.no}</div>
+        <div class="font-semibold text-gray-600">Waktu</div>
+        <div class="col-span-2">${d.waktu}</div>
+        <div class="font-semibold text-gray-600">Username</div>
+        <div class="col-span-2 flex items-center gap-2"><i class="fas fa-user text-blue-400"></i> ${d.username}</div>
+        <div class="font-semibold text-gray-600">Aksi</div>
+        <div class="col-span-2">
+          <span class="inline-block px-2 py-1 rounded text-xs font-semibold
+            ${d.action === 'CREATE' ? 'bg-green-100 text-green-700' : 
+              d.action === 'UPDATE' ? 'bg-yellow-100 text-yellow-700' : 
+              d.action === 'DELETE' ? 'bg-red-100 text-red-700' : 
+              'bg-gray-100 text-gray-700'}">
+            ${d.action}
+          </span>
+        </div>
+        <div class="font-semibold text-gray-600">Tabel</div>
+        <div class="col-span-2">${d.table}</div>
+        <div class="font-semibold text-gray-600">ID Record</div>
+        <div class="col-span-2">${d.record}</div>
+        <div class="font-semibold text-gray-600">Keterangan</div>
+        <div class="col-span-2">
+          <div class="bg-gray-50 border border-gray-200 rounded p-3 mt-1 text-gray-800 max-h-40 overflow-auto whitespace-pre-line text-[15px]">
+            ${d.description}
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    content.innerText = '(Tidak ada detail)';
+  }
+  modal.style.display = 'flex';
+}
+function closeDetailModal() {
+  document.getElementById('detailModal').style.display = 'none';
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeDetailModal();
+});
+</script>
 
 <%- include('partials/footer') %>
