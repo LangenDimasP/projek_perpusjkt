@@ -1,6 +1,19 @@
 <%- include('partials/header') %>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<style>
+    .select2-container--open .select2-dropdown {
+    z-index: 9999;
+}
+.fixed.z-50 {
+    overflow: visible;
+}
+</style>
+
 <% const days = {1:'Sen', 2:'Sel', 3:'Rab', 4:'Kam', 5:'Jum', 6:'Sab', 0:'Min'}; %>
 
 <div x-data="posisiController()" x-init="init()">
@@ -48,6 +61,15 @@
                             <% }) %>
                         </div>
                     </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2" for="shift_ids">Shift yang Diizinkan</label>
+                        <select name="shift_ids[]" id="shift_ids" class="w-full" multiple="multiple">
+                          <% shifts.forEach(s => { %>
+                            <option value="<%= s.id_shift %>"><%= s.nama_shift %></option>
+                          <% }) %>
+                        </select>
+                        <small class="text-gray-500">Pilih satu atau beberapa shift untuk posisi ini</small>
+                    </div>
                     <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3 px-6 rounded-xl transition hover:opacity-90">
                         <i class="fas fa-plus mr-2"></i>Tambah Posisi
                     </button>
@@ -60,8 +82,17 @@
                 <div class="bg-white rounded-2xl shadow-lg border border-gray-100">
                     <div class="p-6 border-b border-gray-100 flex justify-between items-center">
                         <div class="flex items-center">
-                             <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4"><i class="fas fa-briefcase text-purple-600 text-xl"></i></div>
+                            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4">
+                                <i class="fas fa-briefcase text-purple-600 text-xl"></i>
+                            </div>
                             <h4 class="text-xl font-semibold text-gray-800">Daftar Posisi Kerja</h4>
+                            <button
+                                @click="openDeleteAllConfirmModal()"
+                                class="ml-4 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition text-sm"
+                                type="button"
+                            >
+                                <i class="fas fa-trash mr-1"></i> Hapus Semua Posisi
+                            </button>
                         </div>
                         <div class="relative w-full sm:w-1/2">
                             <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -74,6 +105,7 @@
                                 <tr>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[260px]">Nama Posisi</th>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[220px]">Hari Kerja</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase w-[220px]">Shift</th>
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase w-[140px]">Aksi</th>
                                 </tr>
                             </thead>
@@ -89,6 +121,17 @@
                                                     </span>
                                                 <% }) %>
                                             </td>
+                                            <td class="px-6 py-4 w-[220px] truncate">
+                    <% if (p.shifts) { %>
+                        <% p.shifts.split(',').forEach(shift => { %>
+                            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold mr-1 px-2.5 py-1 rounded-full">
+                                <%= shift.trim() %>
+                            </span>
+                        <% }) %>
+                    <% } else { %>
+                        <span class="text-gray-400">-</span>
+                    <% } %>
+                </td>
                                             <td class="px-6 py-4 text-center whitespace-nowrap w-[140px]">
                                                 <button @click="openEditModal(<%= p.id_posisi %>)" class="font-medium text-indigo-600 hover:underline">Edit</button>
                                                 <span class="mx-2 text-gray-300">|</span>
@@ -135,7 +178,8 @@
         </div>
     </div>
     
-    <div x-show="showEditModal" @keydown.escape.window="showEditModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" style="display: none;">
+    <!-- Modal Edit Posisi -->
+    <div x-show="showEditModal" @keydown.escape.window="showEditModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" x-ref="modalEdit" style="display: none;">
         <div @click.away="showEditModal = false" class="w-full max-w-md bg-white rounded-2xl shadow-xl">
             <div class="flex justify-between items-center p-6 border-b border-gray-100">
                 <h2 class="text-xl font-semibold text-gray-800">Edit Posisi</h2>
@@ -148,7 +192,6 @@
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Nama Posisi</label>
                         <input type="text" x-model="editFormData.nama_posisi" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
                     </div>
-                    <!-- Untuk form edit posisi -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Hari Kerja</label>
                         <button type="button"
@@ -168,6 +211,14 @@
                                 </label>
                             <% }) %>
                         </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2" for="shift_ids_edit">Shift yang Diizinkan</label>
+                        <select name="shift_ids[]" id="shift_ids_edit" x-ref="shiftSelectEdit" class="w-full" multiple="multiple">
+                            <% shifts.forEach(s => { %>
+                                <option value="<%= s.id_shift %>"><%= s.nama_shift %></option>
+                            <% }) %>
+                        </select>
                     </div>
                     <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3 px-6 rounded-xl">
                         <i class="fas fa-save mr-2"></i>Simpan Perubahan
@@ -192,26 +243,48 @@
             </div>
         </div>
     </div>
+        <div x-show="showDeleteAllConfirmModal" @keydown.escape.window="showDeleteAllConfirmModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" style="display: none;">
+        <div @click.away="showDeleteAllConfirmModal = false" class="w-full max-w-md bg-white rounded-2xl shadow-xl">
+            <div class="p-8 text-center">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Konfirmasi Hapus Semua</h2>
+                <p class="text-gray-600 mt-2">Anda yakin ingin <b>MENGHAPUS SEMUA POSISI</b>?<br>Data tidak dapat dikembalikan!</p>
+                <div class="mt-6 flex justify-center gap-4">
+                    <button @click="showDeleteAllConfirmModal = false" class="px-8 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Batal</button>
+                    <button @click="executeDeleteAll()" class="px-8 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">Ya, Hapus Semua</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
-// filepath: e:\PROJEK_PERPUSJKT\sistem_penjadwalanperpusjkt\views\posisi.ejs
 document.addEventListener('alpine:init', () => {
     Alpine.data('posisiController', () => ({
         showEditModal: false,
-        addFormData: { nama_posisi: '', hari_kerja: ['1','2','3','4','5'] },
-        editFormData: { id_posisi: null, nama_posisi: '', hari_kerja: [] },
+        addFormData: { nama_posisi: '', hari_kerja: ['1','2','3','4','5'], shift_ids: [] },
+        editFormData: { id_posisi: null, nama_posisi: '', hari_kerja: [], shift_ids: [] },
         toast: { visible: false, message: '', type: 'success' },
         debounceTimer: null,
         showDeleteConfirmModal: false,
         itemToDelete: { id: null, name: '' },
+        showDeleteAllConfirmModal: false,
+
+        triggerToast(message, type = 'success') {
+            this.toast.message = message;
+            this.toast.type = type;
+            this.toast.visible = true;
+            setTimeout(() => this.toast.visible = false, 3000);
+        },
 
         init() {
-            // Ambil status dari query string
+            // Toast dari query string
             const params = new URLSearchParams(window.location.search);
             const status = params.get('status');
             const pesan = params.get('pesan');
-
+        
             if (status === 'hapus_sukses') {
                 this.triggerToast('Posisi berhasil dihapus!', 'success');
                 params.delete('status');
@@ -223,26 +296,74 @@ document.addEventListener('alpine:init', () => {
                 params.delete('pesan');
                 window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
             }
+
+            // Inisialisasi Select2 untuk tambah (selalu pakai search box)
+            if ($('#shift_ids').data('select2')) {
+                $('#shift_ids').select2('destroy');
+            }
+            $('#shift_ids').select2({
+                width: '100%',
+                placeholder: 'Pilih shift',
+                allowClear: true,
+                minimumResultsForSearch: 0 // <--- search box selalu muncul
+            });
         },
 
-        triggerToast(message, type = 'success') {
-            this.toast.message = message;
-            this.toast.type = type;
-            this.toast.visible = true;
-            setTimeout(() => this.toast.visible = false, 3000);
-        },
+        openDeleteAllConfirmModal() {
+    this.showDeleteAllConfirmModal = true;
+},
 
-        openEditModal(id) {
-            fetch(`/api/posisi/${id}`)
-                .then(res => res.json())
-                .then(data => {
-                    this.editFormData = data;
-                    this.showEditModal = true;
-                })
-                .catch(e => console.error('Gagal memuat data posisi:', e));
-        },
+executeDeleteAll() {
+    fetch('/posisi/hapus-semua', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            this.showDeleteAllConfirmModal = false;
+            if (data.success) {
+                this.triggerToast('Semua posisi berhasil dihapus!', 'success');
+                this.handleFilterChange(true);
+            } else {
+                this.triggerToast(data.message || 'Gagal menghapus semua posisi.', 'error');
+            }
+        })
+        .catch(() => {
+            this.showDeleteAllConfirmModal = false;
+            this.triggerToast('Terjadi kesalahan jaringan.', 'error');
+        });
+},
+
+
+        
+openEditModal(id) {
+    fetch(`/api/posisi/${id}`)
+        .then(res => res.json())
+        .then(data => {
+            console.log('Data dari API:', data); // Debugging
+            this.editFormData = data;
+            this.showEditModal = true;
+            setTimeout(() => {
+                const $select = $('#shift_ids_edit');
+                if ($select.length) {
+                    if ($select.data('select2')) {
+                        $select.select2('destroy');
+                    }
+                    $select.select2({
+                        width: '100%',
+                        placeholder: 'Pilih shift',
+                        allowClear: true,
+                        dropdownParent: this.$refs.modalEdit,
+                        minimumResultsForSearch: 0
+                    });
+                    $select.val(data.shift_ids.map(String)).trigger('change');
+                } else {
+                    console.error('Elemen #shift_ids_edit tidak ditemukan');
+                }
+            },0);
+        })
+        .catch(e => console.error('Gagal memuat data posisi:', e));
+},
 
         submitAddForm() {
+            this.addFormData.shift_ids = $('#shift_ids').val() || [];
             fetch('/api/posisi/tambah', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -252,7 +373,8 @@ document.addEventListener('alpine:init', () => {
             .then(data => {
                 if (data.success) {
                     this.triggerToast(data.message, 'success');
-                    this.addFormData = { nama_posisi: '', hari_kerja: ['1','2','3','4','5'] };
+                    this.addFormData = { nama_posisi: '', hari_kerja: ['1','2','3','4','5'], shift_ids: [] };
+                    $('#shift_ids').val(null).trigger('change');
                     this.handleFilterChange(true);
                 } else {
                     this.triggerToast(data.message, 'error');
@@ -261,6 +383,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         submitEditForm() {
+            this.editFormData.shift_ids = $('#shift_ids_edit').val() || [];
             fetch(`/api/posisi/update/${this.editFormData.id_posisi}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -335,6 +458,17 @@ document.addEventListener('alpine:init', () => {
         }
     }));
 });
-</script>
 
+// Inisialisasi Select2 jika ada render ulang (misal via Turbo/HTMX, jika pakai)
+document.addEventListener('DOMContentLoaded', function() {
+    if ($('#shift_ids').length && !$('#shift_ids').data('select2')) {
+        $('#shift_ids').select2({
+            width: '100%',
+            placeholder: 'Pilih shift',
+            allowClear: true,
+            minimumResultsForSearch: 0
+        });
+    }
+});
+</script>
 <%- include('partials/footer') %>

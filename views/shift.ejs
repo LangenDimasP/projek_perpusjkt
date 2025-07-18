@@ -63,12 +63,21 @@
                 <div class="bg-white rounded-2xl shadow-lg border border-gray-100">
                     <div class="p-6 border-b border-gray-100 flex justify-between items-center">
                         <div class="flex items-center">
-                             <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4"><i class="fas fa-clock text-purple-600 text-xl"></i></div>
+                            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4"><i class="fas fa-clock text-purple-600 text-xl"></i></div>
                             <h4 class="text-xl font-semibold text-gray-800">Daftar Shift</h4>
                         </div>
-                        <div class="relative w-full sm:w-1/2">
-                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                            <input @keyup.debounce.350ms="handleFilterChange()" type="text" name="search" id="search" class="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl" value="<%= query.search || '' %>" placeholder="Cari shift...">
+                        <div class="flex gap-2 w-full sm:w-1/2">
+                            <button
+                                @click="openDeleteAllConfirmModal()"
+                                class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 text-sm"
+                                type="button"
+                            >
+                                <i class="fas fa-trash-alt mr-1"></i> Hapus Semua Shift
+                            </button>
+                            <div class="relative flex-1">
+                                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                <input @keyup.debounce.350ms="handleFilterChange()" type="text" name="search" id="search" class="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl" value="<%= query.search || '' %>" placeholder="Cari shift...">
+                            </div>
                         </div>
                     </div>
                     <div class="overflow-x-auto">
@@ -203,6 +212,25 @@
             </div>
         </div>
     </div>
+        <!-- Modal Konfirmasi Hapus Semua Shift -->
+    <div x-show="showDeleteAllConfirmModal" @keydown.escape.window="showDeleteAllConfirmModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" style="display: none;">
+        <div @click.away="showDeleteAllConfirmModal = false" class="w-full max-w-md bg-white rounded-2xl shadow-xl">
+            <div class="p-8 text-center">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Konfirmasi Hapus Semua</h2>
+                <p class="text-gray-600 mt-2">
+                    Anda yakin ingin <b>MENGHAPUS SEMUA SHIFT</b>?<br>
+                    <span class="font-semibold text-red-600">Aksi ini tidak dapat dibatalkan.</span>
+                </p>
+                <div class="mt-6 flex justify-center gap-4">
+                    <button @click="showDeleteAllConfirmModal = false" class="px-8 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Batal</button>
+                    <button @click="executeDeleteAll()" class="px-8 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">Ya, Hapus Semua</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -210,6 +238,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('shiftController', () => ({
         // --- STATE MANAGEMENT ---
         showEditModal: false,
+        showDeleteAllConfirmModal: false,
         addFormData: {
             nama_shift: '',
             kuota: 10,
@@ -226,6 +255,12 @@ document.addEventListener('alpine:init', () => {
             message: '',
             type: 'success'
         },
+        triggerToast(message, type = 'success') {
+        this.toast.message = message;
+        this.toast.type = type;
+        this.toast.visible = true;
+        setTimeout(() => this.toast.visible = false, 3000);
+    },
         debounceTimer: null,
         showDeleteConfirmModal: false,
         itemToDelete: {
@@ -261,6 +296,25 @@ document.addEventListener('alpine:init', () => {
             this.toast.visible = true;
             setTimeout(() => this.toast.visible = false, 3000);
         },
+        openDeleteAllConfirmModal() {
+    this.showDeleteAllConfirmModal = true;
+},
+
+async executeDeleteAll() {
+    try {
+        const res = await fetch('/shift/hapus-semua', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            this.showDeleteAllConfirmModal = false;
+            this.triggerToast(data.message, 'success');
+            this.handleFilterChange(true);
+        } else {
+            this.triggerToast(data.message || 'Gagal menghapus semua shift.', 'error');
+        }
+    } catch (e) {
+        this.triggerToast('Terjadi kesalahan jaringan.', 'error');
+    }
+},
 
         // --- MODAL & FORM FUNCTIONS ---
         openEditModal(id) {

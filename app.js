@@ -748,106 +748,100 @@ app.post("/generate-jadwal", requireLogin, async (req, res) => {
             return res.status(400).send("Tanggal Mulai dan Tanggal Akhir harus diisi.");
         }
 
-        // 1. Ambil semua data yang diperlukan secara bersamaan
+        // 1. Ambil semua data yang diperlukan dalam satu panggilan
         const [
-            [allPersonel], [shifts], [posisiKerja], [batasan]
+            [allPersonel],
+            [shifts],
+            [posisiKerja],
+            [batasan],
+            [posisiShifts]
         ] = await Promise.all([
             pool.query("SELECT p.id_personel, p.posisi_kerja_utama, pk.hari_kerja FROM personel p JOIN posisi_kerja pk ON p.posisi_kerja_utama = pk.nama_posisi"),
             pool.query("SELECT id_shift, kuota, hari_kerja FROM shift"),
             pool.query("SELECT id_posisi, nama_posisi FROM posisi_kerja"),
-            pool.query("SELECT id_personel, tanggal_mulai, tanggal_akhir FROM batasan_preferensi WHERE tanggal_mulai <= ? AND tanggal_akhir >= ?", [tanggalAkhir, tanggalMulai])
+            pool.query("SELECT id_personel, tanggal_mulai, tanggal_akhir FROM batasan_preferensi WHERE tanggal_mulai <= ? AND tanggal_akhir >= ?", [tanggalAkhir, tanggalMulai]),
+            pool.query("SELECT id_posisi, id_shift FROM posisi_shift")
         ]);
 
         if (allPersonel.length === 0 || shifts.length === 0) {
             return res.status(400).send("Tidak ada data personel atau shift untuk membuat jadwal.");
         }
 
-        // 2. Filter personel yang dikecualikan
+        // 2. Siapkan data-data awal (lookup maps) untuk performa
         const personelToSchedule = allPersonel.filter(p => !excludedIds.includes(p.id_personel));
-
-        // 3. Buat array tanggal dalam rentang yang dipilih
-        function getDateRange(start, end) {
-            const arr = [];
-            let dt = new Date(start);
-            const endDt = new Date(end);
-            while (dt <= endDt) {
-                arr.push(dt.toISOString().slice(0, 10));
-                dt.setDate(dt.getDate() + 1);
-            }
-            return arr;
-        }
-        const tanggalArray = getDateRange(tanggalMulai, tanggalAkhir);
-
-        // 4. Buat peta cuti acak per personel (2 hari cuti acak)
-        const cutiAcakMap = new Map();
-        personelToSchedule.forEach(p => {
-            // Pilih 2 tanggal acak dari tanggalArray
-            const shuffled = tanggalArray.slice().sort(() => 0.5 - Math.random());
-            const cutiDates = shuffled.slice(0, 2);
-            cutiAcakMap.set(p.id_personel, cutiDates);
-        });
-
-        // 5. Buat 'peta' batasan untuk pencarian cepat, termasuk cuti acak
+        
         const batasanLookup = new Set();
         batasan.forEach(b => {
-            let currentDate = new Date(b.tanggal_mulai);
-            const endDate = new Date(b.tanggal_akhir);
-            while (currentDate <= endDate) {
-                const dateString = toYYYYMMDD(currentDate);
-                batasanLookup.add(`${b.id_personel}-${dateString}`);
-                currentDate.setDate(currentDate.getDate() + 1);
+            for (let d = new Date(b.tanggal_mulai + 'T00:00:00Z'); d <= new Date(b.tanggal_akhir + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) {
+                batasanLookup.add(`${b.id_personel}-${toYYYYMMDD(d)}`);
             }
         });
-        // Tambahkan cuti acak ke batasanLookup
-        for (const [id_personel, cutiDates] of cutiAcakMap.entries()) {
-            cutiDates.forEach(date => {
-                batasanLookup.add(`${id_personel}-${date}`);
-            });
-        }
 
         const posisiNameToIdMap = new Map(posisiKerja.map(p => [p.nama_posisi, p.id_posisi]));
-
-        // 6. Hapus jadwal lama dalam rentang yang dipilih
+        
+        // --- PERBAIKAN: pastikan id_shift bertipe number ---
+        const posisiToShiftsMap = new Map();
+        posisiKerja.forEach(p => posisiToShiftsMap.set(p.id_posisi, [])); // Inisialisasi map
+        posisiShifts.forEach(ps => posisiToShiftsMap.get(ps.id_posisi).push(Number(ps.id_shift)));
+        
+        // 3. Hapus jadwal lama dalam rentang yang dipilih
         await pool.query("DELETE FROM jadwal WHERE tanggal_jadwal BETWEEN ? AND ?", [tanggalMulai, tanggalAkhir]);
 
-        // 7. Looping setiap hari untuk membuat jadwal
-        for (let loopDate = new Date(tanggalMulai); loopDate <= new Date(tanggalAkhir); loopDate.setDate(loopDate.getDate() + 1)) {
+        // 4. Proses pembuatan jadwal
+        let allScheduleInserts = [];
+        const finalDate = new Date(tanggalAkhir + 'T00:00:00Z');
+
+        for (let loopDate = new Date(tanggalMulai + 'T00:00:00Z'); loopDate <= finalDate; loopDate.setUTCDate(loopDate.getUTCDate() + 1)) {
             const tanggalSQL = toYYYYMMDD(loopDate);
-            const dayOfWeek = loopDate.getDay(); // 0=Minggu, 1=Senin, ...
-
-            // Peta untuk melacak kuota shift yang sudah terpakai HARI INI
+            const dayOfWeek = loopDate.getUTCDay(); // 0=Minggu, 1=Senin, ...
+            
             const shiftUsageToday = new Map();
-
-            // Filter shift yang aktif pada hari ini
-            const shiftsAktifHariIni = shifts.filter(s => s.hari_kerja.split(',').includes(String(dayOfWeek)));
-            if (shiftsAktifHariIni.length === 0) continue; // Lanjut ke hari berikutnya jika tidak ada shift
-
-            // Acak urutan personel agar penempatan lebih adil
             const shuffledPersonel = personelToSchedule.sort(() => 0.5 - Math.random());
 
             for (const p of shuffledPersonel) {
-                // Lewati jika personel punya batasan atau tidak bekerja di hari ini
+                // Lewati jika personel punya batasan, tidak punya posisi, atau posisinya tidak kerja hari ini
                 if (batasanLookup.has(`${p.id_personel}-${tanggalSQL}`)) continue;
-                if (!p.hari_kerja || !p.hari_kerja.split(',').includes(String(dayOfWeek))) continue;
+                if (!p.posisi_kerja_utama || !p.hari_kerja || !p.hari_kerja.split(',').includes(String(dayOfWeek))) continue;
+                
+                const idPosisi = posisiNameToIdMap.get(p.posisi_kerja_utama);
+                if (!idPosisi) continue;
 
-                // Lewati jika posisi kerja utama tidak valid
-                if (!p.posisi_kerja_utama || !posisiNameToIdMap.has(p.posisi_kerja_utama)) continue;
+                const allowedShiftIds = (posisiToShiftsMap.get(idPosisi) || []).map(Number);
 
-                // Cari shift yang kuotanya masih tersedia
-                const availableShifts = shiftsAktifHariIni.filter(s => (shiftUsageToday.get(s.id_shift) || 0) < s.kuota);
+                // Filter shift yang: 1. Aktif hari ini, 2. Diizinkan untuk posisi ini, 3. Kuotanya masih ada
+                const availableShifts = shifts.filter(s => 
+                    s.hari_kerja.split(',').includes(String(dayOfWeek)) &&
+                    allowedShiftIds.includes(Number(s.id_shift)) &&
+                    (shiftUsageToday.get(s.id_shift) || 0) < s.kuota
+                );
 
                 if (availableShifts.length > 0) {
                     const randomShift = availableShifts[Math.floor(Math.random() * availableShifts.length)];
-                    const idPosisi = posisiNameToIdMap.get(p.posisi_kerja_utama);
-
-                    await pool.query("INSERT INTO jadwal (tanggal_jadwal, id_personel, id_posisi, id_shift, status_jadwal) VALUES (?, ?, ?, ?, 'Otomatis')", [tanggalSQL, p.id_personel, idPosisi, randomShift.id_shift]);
-
-                    // Update Peta Penggunaan Shift untuk hari ini
+                    allScheduleInserts.push([tanggalSQL, p.id_personel, idPosisi, randomShift.id_shift, 'Otomatis']);
                     shiftUsageToday.set(randomShift.id_shift, (shiftUsageToday.get(randomShift.id_shift) || 0) + 1);
                 }
             }
         }
+        
+        // --- Logika 2 Hari Libur Acak ---
+        // Proses ini dilakukan SETELAH semua jadwal potensial dibuat
+        const finalScheduleInserts = [];
+        const workCountMap = new Map();
 
+        allScheduleInserts.forEach(schedule => {
+            const personelId = schedule[1]; // Ambil id_personel
+            const currentWorkCount = workCountMap.get(personelId) || 0;
+            if (currentWorkCount < 5) { // Batasi maksimal 5 hari kerja per minggu
+                finalScheduleInserts.push(schedule);
+                workCountMap.set(personelId, currentWorkCount + 1);
+            }
+        });
+
+        // 5. Masukkan semua jadwal yang sudah difilter ke database
+        if (finalScheduleInserts.length > 0) {
+            await pool.query("INSERT INTO jadwal (tanggal_jadwal, id_personel, id_posisi, id_shift, status_jadwal) VALUES ?", [finalScheduleInserts]);
+        }
+        
         res.redirect("/jadwal?status=success&tab=tabel");
     } catch (error) {
         console.error("Error saat generate jadwal acak:", error);
@@ -1120,8 +1114,18 @@ app.post("/shift/hapus/:id", requireLogin, async (req, res) => {
         res.redirect(`/shift?status=gagal_hapus&pesan=${encodeURIComponent(msg)}${page}${search}`);
     }
 });
+app.post("/shift/hapus-semua", requireLogin, async (req, res) => {
+    try {
+        await pool.query("DELETE FROM shift");
+        // Tambahkan log admin di sini
+        await logAdminAction(req, 'DELETE_ALL', 'shift', null, 'Hapus semua shift');
+        res.json({ success: true, message: "Semua shift berhasil dihapus." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Gagal menghapus semua shift." });
+    }
+});
 // Rute untuk menampilkan halaman manajemen posisi kerja
-app.get('/posisi',requireLogin, async (req, res) => {
+app.get('/posisi', requireLogin, async (req, res) => {
     try {
         const dataPerPage = 8;
         const currentPage = parseInt(req.query.page) || 1;
@@ -1132,24 +1136,41 @@ app.get('/posisi',requireLogin, async (req, res) => {
         let queryParams = [];
 
         if (search) {
-            whereClause = 'WHERE nama_posisi LIKE ?';
+            whereClause = 'WHERE pk.nama_posisi LIKE ?';
             queryParams.push(`%${search}%`);
         }
 
-        const countQuery = `SELECT COUNT(*) as total FROM posisi_kerja ${whereClause}`;
+        const countQuery = `SELECT COUNT(*) as total FROM posisi_kerja pk ${whereClause}`;
         const [[{ total }]] = await pool.query(countQuery, queryParams);
         const totalPages = Math.ceil(total / dataPerPage);
 
-        const posisiQuery = `SELECT * FROM posisi_kerja ${whereClause} ORDER BY id_posisi DESC LIMIT ? OFFSET ?`;
+        // Query BARU: Mengambil data posisi beserta shift yang terhubung
+        const posisiQuery = `
+            SELECT 
+                pk.id_posisi, 
+                pk.nama_posisi, 
+                pk.hari_kerja, 
+                GROUP_CONCAT(s.nama_shift SEPARATOR ', ') as shifts
+            FROM posisi_kerja pk
+            LEFT JOIN posisi_shift ps ON pk.id_posisi = ps.id_posisi
+            LEFT JOIN shift s ON ps.id_shift = s.id_shift
+            ${whereClause}
+            GROUP BY pk.id_posisi
+            ORDER BY pk.id_posisi DESC
+            LIMIT ? OFFSET ?`;
+            
         const [posisi] = await pool.query(posisiQuery, [...queryParams, dataPerPage, offset]);
+        
+        // Ambil semua shift untuk mengisi dropdown di form
+        const [shifts] = await pool.query("SELECT id_shift, nama_shift FROM shift ORDER BY nama_shift");
 
         res.render('posisi', {
             title: 'Manajemen Posisi',
             posisi,
+            shifts, // Kirim data shifts ke view
             currentPage,
             totalPages,
             query: req.query,
-            currentPath: req.path
         });
     } catch (error) {
         console.error("Error fetching posisi data:", error);
@@ -1158,64 +1179,118 @@ app.get('/posisi',requireLogin, async (req, res) => {
 });
 
 // API untuk mendapatkan satu posisi (untuk edit modal)
-app.get('/api/posisi/:id', async (req, res) => {
-    const [rows] = await pool.query("SELECT id_posisi, nama_posisi, hari_kerja FROM posisi_kerja WHERE id_posisi = ?", [req.params.id]);
-    // Ubah string "1,2,3" menjadi array ['1','2','3']
-    if (rows.length > 0) {
-        rows[0].hari_kerja = rows[0].hari_kerja.split(',');
+app.get('/api/posisi/:id', requireLogin, async (req, res) => {
+    try {
+        const [[posisiData]] = await pool.query("SELECT id_posisi, nama_posisi, hari_kerja FROM posisi_kerja WHERE id_posisi = ?", [req.params.id]);
+        
+        if (!posisiData) {
+            return res.status(404).json({ message: 'Posisi tidak ditemukan' });
+        }
+
+        const [assignedShifts] = await pool.query("SELECT id_shift FROM posisi_shift WHERE id_posisi = ?", [req.params.id]);
+        
+        posisiData.hari_kerja = posisiData.hari_kerja.split(',');
+        posisiData.shift_ids = assignedShifts.map(s => s.id_shift); // Kirim sebagai array ID
+        
+        res.json(posisiData);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
     }
-    res.json(rows[0]);
 });
 
 // API untuk mengupdate posisi
 
 app.post('/api/posisi/update/:id', requireLogin, async (req, res) => {
-    const { nama_posisi, hari_kerja } = req.body;
-    const hariKerjaString = hari_kerja.join(',');
-    await pool.query("UPDATE posisi_kerja SET nama_posisi = ?, hari_kerja = ? WHERE id_posisi = ?", [nama_posisi, hariKerjaString, req.params.id]);
-    await logAdminAction(req, 'UPDATE', 'posisi_kerja', req.params.id, `Edit posisi: ${nama_posisi}`);
-    res.json({ success: true, message: 'Posisi berhasil diperbarui' });
+    const { nama_posisi, hari_kerja, shift_ids } = req.body;
+    const id_posisi = req.params.id;
+
+    if (!nama_posisi || !hari_kerja || hari_kerja.length === 0) {
+        return res.status(400).json({ success: false, message: 'Nama posisi dan hari kerja tidak boleh kosong.' });
+    }
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Update tabel posisi_kerja
+        await connection.query("UPDATE posisi_kerja SET nama_posisi = ?, hari_kerja = ? WHERE id_posisi = ?", [nama_posisi, hari_kerja.join(','), id_posisi]);
+        
+        // Hapus relasi shift yang lama
+        await connection.query("DELETE FROM posisi_shift WHERE id_posisi = ?", [id_posisi]);
+
+        // Buat relasi shift yang baru jika ada
+        if (shift_ids && shift_ids.length > 0) {
+            const shiftValues = shift_ids.map(shiftId => [id_posisi, parseInt(shiftId, 10)]);
+            await connection.query("INSERT INTO posisi_shift (id_posisi, id_shift) VALUES ?", [shiftValues]);
+        }
+        
+        await connection.commit();
+        await logAdminAction(
+    req,
+    'UPDATE',
+    'posisi_kerja',
+    id_posisi,
+    `Edit posisi: ${nama_posisi}, hari_kerja: ${hari_kerja.join(',')}, shift_ids: ${(shift_ids || []).join(',')}`
+);
+
+        res.json({ success: true, message: 'Posisi berhasil diperbarui' });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Gagal update posisi:", error);
+        res.status(500).json({ success: false, message: 'Gagal memperbarui posisi' });
+    } finally {
+        connection.release();
+    }
 });
 
 
 // Rute untuk PROSES MENAMBAH posisi kerja baru
 app.post("/api/posisi/tambah", requireLogin, async (req, res) => {
-    try {
-        const { nama_posisi, hari_kerja } = req.body;
+    const { nama_posisi, hari_kerja, shift_ids } = req.body;
+    
+    if (!nama_posisi || !hari_kerja || hari_kerja.length === 0 || nama_posisi.trim() === '') {
+        return res.status(400).json({ success: false, message: 'Nama posisi dan hari kerja wajib diisi.' });
+    }
 
-        // Validasi 1: Pastikan input tidak kosong
-        if (!nama_posisi || !hari_kerja || hari_kerja.length === 0 || nama_posisi.trim() === '') {
-            return res.status(400).json({ success: false, message: 'Nama posisi dan hari kerja wajib diisi.' });
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Cek duplikat
+        const [[{ count }]] = await connection.query("SELECT COUNT(*) as count FROM posisi_kerja WHERE nama_posisi = ?", [nama_posisi.trim()]);
+        if (count > 0) {
+            await connection.rollback();
+            return res.status(409).json({ success: false, message: 'Nama posisi sudah tersedia.' });
         }
 
-        // Validasi 2: Cek duplikat nama posisi
-        const checkQuery = "SELECT COUNT(*) as count FROM posisi_kerja WHERE nama_posisi = ?";
-        const [[{ count }]] = await pool.query(checkQuery, [nama_posisi.trim()]);
+        const hariKerjaString = hari_kerja.join(',');
+        const [result] = await connection.query("INSERT INTO posisi_kerja (nama_posisi, hari_kerja) VALUES (?, ?)", [nama_posisi.trim(), hariKerjaString]);
+        const newPosisiId = result.insertId;
 
-        if (count > 0) {
-            return res.status(409).json({ 
-                success: false, 
-                message: 'Posisi sudah tersedia, silakan masukan posisi yang lain.' 
-            });
+        // Jika ada shift yang dipilih, simpan ke tabel posisi_shift
+        console.log('shift_ids:', shift_ids);
+        if (shift_ids && shift_ids.length > 0) {
+            const shiftValues = shift_ids.map(shiftId => [newPosisiId, parseInt(shiftId, 10)]);
+            await connection.query("INSERT INTO posisi_shift (id_posisi, id_shift) VALUES ?", [shiftValues]);
         }
         
-        // Ubah array hari kerja (e.g., ['1','2','5']) menjadi string "1,2,5"
-        const hariKerjaString = hari_kerja.join(',');
-
-        // Jika tidak ada duplikat, lanjutkan proses INSERT
-        const [result] = await pool.query(
-            "INSERT INTO posisi_kerja (nama_posisi, hari_kerja) VALUES (?, ?)", 
-            [nama_posisi.trim(), hariKerjaString]
-        );
-
-        // Tambahkan log admin di sini
-        await logAdminAction(req, 'CREATE', 'posisi_kerja', result.insertId, `Tambah posisi: ${nama_posisi}, hari_kerja: ${hariKerjaString}`);
-
+        await connection.commit();
+        await logAdminAction(
+    req,
+    'CREATE',
+    'posisi_kerja',
+    newPosisiId,
+    `Tambah posisi: ${nama_posisi.trim()}, hari_kerja: ${hariKerjaString}, shift_ids: ${(shift_ids || []).join(',')}`
+);
         res.json({ success: true, message: 'Posisi baru berhasil ditambahkan!' });
 
     } catch (error) {
+        await connection.rollback();
         console.error("Gagal menambah posisi:", error);
         res.status(500).json({ success: false, message: 'Terjadi kesalahan di server.' });
+    } finally {
+        connection.release();
     }
 });
 
@@ -1223,25 +1298,40 @@ app.post("/api/posisi/tambah", requireLogin, async (req, res) => {
 // Rute untuk PROSES HAPUS posisi kerja
 app.post("/posisi/hapus/:id", requireLogin, async (req, res) => {
     try {
-        const idPosisi = req.params.id;
-        const page = req.query.page ? `&page=${req.query.page}` : '';
-        const search = req.query.search ? `&search=${encodeURIComponent(req.query.search)}` : '';
-        // Cek apakah posisi masih digunakan di jadwal
-        const [[{ count }]] = await pool.query(
-            "SELECT COUNT(*) as count FROM jadwal WHERE id_posisi = ?", [idPosisi]
-        );
+        const posisiId = req.params.id;
+
+        // Cek apakah posisi masih digunakan oleh personel
+        const [[{ count }]] = await pool.query("SELECT COUNT(*) as count FROM personel WHERE posisi_kerja_utama = (SELECT nama_posisi FROM posisi_kerja WHERE id_posisi = ?)", [posisiId]);
         if (count > 0) {
-            // Jika masih dipakai, redirect dengan pesan error
-            return res.redirect(`/posisi?status=gagal_hapus&pesan=${encodeURIComponent('Posisi tidak bisa dihapus karena masih digunakan pada jadwal.')}${page}${search}`);
+            const pesanError = `Gagal: Posisi ini tidak dapat dihapus karena masih digunakan oleh ${count} personel.`;
+            return res.redirect(`/posisi?status=gagal_hapus&pesan=${encodeURIComponent(pesanError)}`);
         }
-        await pool.query("DELETE FROM posisi_kerja WHERE id_posisi = ?", [idPosisi]);
-        await logAdminAction(req, 'DELETE', 'posisi_kerja', idPosisi, `Hapus posisi id: ${idPosisi}`);
-        res.redirect(`/posisi?status=hapus_sukses${page}${search}`);
+
+        // Karena ada 'ON DELETE CASCADE' di database,
+        // data di 'posisi_shift' akan otomatis terhapus.
+        await pool.query("DELETE FROM posisi_kerja WHERE id_posisi = ?", [posisiId]);
+        await logAdminAction(req, 'DELETE', 'posisi_kerja', posisiId, `Hapus posisi id: ${posisiId}`);
+        
+        res.redirect('/posisi?status=hapus_sukses');
+
     } catch (error) {
-        console.error(error);
-        const page = req.query.page ? `&page=${req.query.page}` : '';
-        const search = req.query.search ? `&search=${encodeURIComponent(req.query.search)}` : '';
-        res.redirect(`/posisi?status=gagal_hapus&pesan=${encodeURIComponent('Gagal menghapus posisi.')}${page}${search}`);
+        console.error("Gagal menghapus posisi:", error);
+        res.redirect(`/posisi?status=gagal_hapus&pesan=${encodeURIComponent('Terjadi kesalahan di server.')}`);
+    }
+});
+
+// Rute untuk PROSES HAPUS SEMUA posisi kerja
+app.post("/posisi/hapus-semua", requireLogin, async (req, res) => {
+    try {
+        // Hapus semua relasi shift dulu (agar tidak error foreign key)
+        await pool.query("DELETE FROM posisi_shift");
+        // Hapus semua posisi kerja
+        await pool.query("DELETE FROM posisi_kerja");
+        await logAdminAction(req, 'DELETE_ALL', 'posisi_kerja', null, 'Hapus semua posisi kerja');
+        res.json({ success: true, message: "Semua posisi berhasil dihapus." });
+    } catch (error) {
+        console.error("Gagal menghapus semua posisi:", error);
+        res.status(500).json({ success: false, message: "Gagal menghapus semua posisi." });
     }
 });
 
@@ -1818,21 +1908,22 @@ app.post("/generate-jadwal-spesifik", requireLogin, async (req, res) => {
             return res.status(400).send("Data tidak lengkap. Harap isi tanggal dan pilih personel.");
         }
 
-        // --- PERBAIKAN DESTRUCTURING DI SINI ---
+        // Ambil data personel, shift, posisi, batasan, dan posisi_shift
         const [
-            [personelToSchedule], [shifts], [posisiKerja], [batasan]
+            [personelToSchedule], [shifts], [posisiKerja], [batasan], [posisiShifts]
         ] = await Promise.all([
             pool.query("SELECT id_personel, posisi_kerja_utama FROM personel WHERE id_personel IN (?)", [selectedIds]),
-            pool.query("SELECT id_shift FROM shift"),
+            pool.query("SELECT id_shift, hari_kerja, kuota FROM shift"),
             pool.query("SELECT id_posisi, nama_posisi FROM posisi_kerja"),
-            pool.query("SELECT id_personel, tanggal_mulai, tanggal_akhir FROM batasan_preferensi WHERE tanggal_mulai <= ? AND tanggal_akhir >= ?", [tanggalAkhir, tanggalMulai])
+            pool.query("SELECT id_personel, tanggal_mulai, tanggal_akhir FROM batasan_preferensi WHERE tanggal_mulai <= ? AND tanggal_akhir >= ?", [tanggalAkhir, tanggalMulai]),
+            pool.query("SELECT id_posisi, id_shift FROM posisi_shift")
         ]);
 
         if (personelToSchedule.length === 0 || shifts.length === 0) {
             return res.status(400).send("Personel atau data shift tidak ditemukan.");
         }
 
-        // Logika selanjutnya sudah benar
+        // Batasan
         const batasanLookup = new Set();
         batasan.forEach(b => {
             let currentDate = new Date(b.tanggal_mulai);
@@ -1844,26 +1935,43 @@ app.post("/generate-jadwal-spesifik", requireLogin, async (req, res) => {
             }
         });
 
-        const shiftIds = shifts.map(s => s.id_shift);
+        // Map posisi
         const posisiNameToIdMap = new Map(posisiKerja.map(p => [p.nama_posisi, p.id_posisi]));
-        
+        // Map posisi ke shift
+        const posisiToShiftsMap = new Map();
+        posisiKerja.forEach(p => posisiToShiftsMap.set(p.id_posisi, []));
+        posisiShifts.forEach(ps => posisiToShiftsMap.get(ps.id_posisi).push(Number(ps.id_shift)));
+
         await pool.query("DELETE FROM jadwal WHERE tanggal_jadwal BETWEEN ? AND ? AND id_personel IN (?)", [tanggalMulai, tanggalAkhir, selectedIds]);
 
         for (let loopDate = new Date(tanggalMulai); loopDate <= new Date(tanggalAkhir); loopDate.setDate(loopDate.getDate() + 1)) {
             const tanggalSQL = toYYYYMMDD(loopDate);
+            const dayOfWeek = loopDate.getDay(); // 0=minggu, 1=senin, dst
+
             for (const p of personelToSchedule) {
                 const lookupKey = `${p.id_personel}-${tanggalSQL}`;
                 if (batasanLookup.has(lookupKey)) continue;
-
                 if (!p.posisi_kerja_utama || !posisiNameToIdMap.has(p.posisi_kerja_utama)) continue;
 
                 const idPosisi = posisiNameToIdMap.get(p.posisi_kerja_utama);
-                const randomShiftId = shiftIds[Math.floor(Math.random() * shiftIds.length)];
-                
-                await pool.query("INSERT INTO jadwal (tanggal_jadwal, id_personel, id_posisi, id_shift, status_jadwal) VALUES (?, ?, ?, ?, 'Otomatis')", [tanggalSQL, p.id_personel, idPosisi, randomShiftId]);
+                const allowedShiftIds = (posisiToShiftsMap.get(idPosisi) || []).map(Number);
+
+                // Filter shift sesuai hari dan posisi
+                const availableShifts = shifts.filter(s =>
+                    s.hari_kerja.split(',').includes(String(dayOfWeek)) &&
+                    allowedShiftIds.includes(Number(s.id_shift))
+                );
+
+                if (availableShifts.length > 0) {
+                    const randomShift = availableShifts[Math.floor(Math.random() * availableShifts.length)];
+                    await pool.query(
+                        "INSERT INTO jadwal (tanggal_jadwal, id_personel, id_posisi, id_shift, status_jadwal) VALUES (?, ?, ?, ?, 'Otomatis')",
+                        [tanggalSQL, p.id_personel, idPosisi, randomShift.id_shift]
+                    );
+                }
             }
         }
-        
+
         res.redirect("/jadwal?status=success&tab=tabel");
     } catch (error) {
         console.error("Error saat generate jadwal spesifik:", error);
@@ -1989,6 +2097,29 @@ app.get("/api/personel-all", requireLogin, async (req, res) => {
         res.json(personel);
     } catch (error) {
         res.status(500).json({ message: "Gagal mengambil data semua personel" });
+    }
+});
+// Hapus semua personel
+app.post('/personel/hapus-semua', requireLogin, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM personel');
+        await logAdminAction(req, 'DELETE_ALL', 'personel', null, 'Hapus semua personel');
+        res.json({ success: true, message: 'Semua personel berhasil dihapus.' });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Gagal menghapus semua personel.' });
+    }
+});
+
+// Hapus personel terpilih
+app.post('/personel/hapus-terpilih', requireLogin, async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0) return res.json({ success: false, message: 'Tidak ada personel dipilih.' });
+        await pool.query('DELETE FROM personel WHERE id_personel IN (?)', [ids]);
+        await logAdminAction(req, 'DELETE_SELECTED', 'personel', null, `Hapus personel terpilih: ${ids.join(',')}`);
+        res.json({ success: true, message: 'Personel terpilih berhasil dihapus.' });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Gagal menghapus personel terpilih.' });
     }
 });
 

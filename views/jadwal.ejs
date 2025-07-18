@@ -252,6 +252,13 @@
                     </select>
                 </div>
             </div>
+            <div class="mt-4 flex justify-end">
+        <button type="button"
+            @click="resetFilter"
+            class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-5 py-2 rounded-xl shadow-sm transition-all">
+            Reset Filter
+        </button>
+    </div>
         </form>
         
         <div id="table-content-container" @click="handlePaginationClick($event)">
@@ -613,6 +620,15 @@
                     this.triggerToast('Gagal memuat data edit.', 'error');
                 });
             },
+            resetFilter() {
+    // Reset semua input filter ke default
+    document.getElementById('filterTanggal').value = '';
+    document.getElementById('searchNama').value = '';
+    document.getElementById('filterPosisi').value = '';
+    document.getElementById('filterShift').value = '';
+    // Panggil handleFilterChange untuk refresh tabel
+    this.handleFilterChange(true);
+},
 
             submitEditForm() {
                 // Validasi: Cek apakah personel sudah ada di tanggal yang sama (kecuali id_jadwal yang sedang diedit)
@@ -1007,5 +1023,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
 
 <%- include('partials/footer') %>

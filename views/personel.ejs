@@ -15,9 +15,23 @@
             <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4"><i class="fas fa-users text-blue-600 text-xl"></i></div>
             <div><h2 class="text-2xl font-bold text-gray-800">Daftar Personel</h2><p class="text-sm text-gray-600">Kelola data personel dan karyawan</p></div>
         </div>
-        <div class="flex gap-2">
-           <button @click="showBulkAddModal = true" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold py-2.5 px-4 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all text-sm shadow-sm transform hover:scale-105">+ Tambah Banyak</button>
-           <button @click="showImportModal = true" class="bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-semibold py-2.5 px-4 rounded-xl hover:from-teal-700 hover:to-cyan-700 transition-all text-sm shadow-sm transform hover:scale-105">↑ Impor Excel</button>
+        <div class="flex flex-wrap gap-2">
+            <button @click="showBulkAddModal = true"
+                class="bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold py-2.5 px-4 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all text-sm shadow-sm transform hover:scale-105">
+                + Tambah Banyak
+            </button>
+            <button @click="showImportModal = true"
+                class="bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-semibold py-2.5 px-4 rounded-xl hover:from-teal-700 hover:to-cyan-700 transition-all text-sm shadow-sm transform hover:scale-105">
+                ↑ Impor Excel
+            </button>
+            <button @click="showDeleteAllModal = true"
+                class="bg-gradient-to-r from-red-600 to-pink-600 text-white font-semibold py-2.5 px-4 rounded-xl hover:from-red-700 hover:to-pink-700 transition-all text-sm shadow-sm transform hover:scale-105">
+                <i class="fas fa-trash-alt mr-1"></i> Hapus Semua
+            </button>
+            <button @click="showDeleteSelectedModal = true"
+                class="bg-yellow-500 text-white font-semibold py-2.5 px-4 rounded-xl hover:from-yellow-800 hover:to-orange-800 transition-all text-sm shadow-sm transform hover:scale-105">
+                <i class="fas fa-user-minus mr-1"></i> Hapus Personel Tertentu
+            </button>
         </div>
     </div>
 
@@ -29,6 +43,13 @@
                 <div><label for="filterPosisi" class="block text-sm font-semibold text-gray-700 mb-2">Filter Posisi</label><select @change="handleFilterChange" id="filterPosisi" name="filterPosisi" class="w-full px-4 py-3 border border-gray-200 rounded-xl"><option value="semua">Semua Posisi</option><% posisi.forEach(pos => { %><option value="<%= pos.nama_posisi %>" <%= query.filterPosisi === pos.nama_posisi ? 'selected' : '' %>><%= pos.nama_posisi %></option><% }) %></select></div>
                 <div><label for="filterShift" class="block text-sm font-semibold text-gray-700 mb-2">Filter Shift</label><select @change="handleFilterChange" id="filterShift" name="filterShift" class="w-full px-4 py-3 border border-gray-200 rounded-xl"><option value="semua">Semua Shift</option><% shifts.forEach(s => { %><option value="<%= s.nama_shift %>" <%= query.filterShift === s.nama_shift ? 'selected' : '' %>><%= s.nama_shift %></option><% }) %><option value="N/A" <%= query.filterShift === 'N/A' ? 'selected' : '' %>>Tidak Ada Shift</option></select></div>
             </div>
+            <div class="mt-4 flex justify-end">
+        <button type="button"
+            @click="resetFilter"
+            class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-5 py-2 rounded-xl shadow-sm transition-all">
+            Reset Filter
+        </button>
+    </div>
         </form>
     </div>
 
@@ -138,6 +159,45 @@
         </div>
     </div>
     <div x-show="showDeleteConfirmModal" @keydown.escape.window="showDeleteConfirmModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" style="display: none;"><div @click.away="showDeleteConfirmModal = false" class="w-full max-w-md bg-white rounded-2xl shadow-xl"><div class="p-8 text-center"><div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5"><i class="fas fa-exclamation-triangle text-red-500 text-3xl"></i></div><h2 class="text-2xl font-bold text-gray-800">Konfirmasi Hapus</h2><p class="text-gray-600 mt-2">Anda yakin ingin menghapus personel <br> "<strong x-text="itemToDelete.name"></strong>"?</p><div class="mt-6 flex justify-center gap-4"><button @click="showDeleteConfirmModal = false" class="px-8 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Batal</button><button @click="executeDelete()" class="px-8 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">Ya, Hapus</button></div></div></div></div>
+        <!-- Modal Hapus Semua Personel -->
+    <div x-show="showDeleteAllModal" @keydown.escape.window="showDeleteAllModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" style="display:none;">
+      <div @click.away="showDeleteAllModal = false" class="w-full max-w-md bg-white rounded-2xl shadow-xl">
+        <div class="p-8 text-center">
+          <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
+            <i class="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
+          </div>
+          <h2 class="text-2xl font-bold text-gray-800">Konfirmasi Hapus Semua</h2>
+          <p class="text-gray-600 mt-2">
+            Anda yakin ingin <b>MENGHAPUS SEMUA PERSONEL</b>?<br>
+            <span class="font-semibold text-red-600">Aksi ini tidak dapat dibatalkan.</span>
+          </p>
+          <div class="mt-6 flex justify-center gap-4">
+            <button @click="showDeleteAllModal = false" class="px-8 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Batal</button>
+            <button @click="executeDeleteAll()" class="px-8 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">Ya, Hapus Semua</button>
+          </div>
+        </div>
+      </div>
+    </div>
+        <!-- Modal Hapus Personel Tertentu -->
+    <div x-show="showDeleteSelectedModal" @keydown.escape.window="showDeleteSelectedModal = false" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" style="display:none;">
+      <div @click.away="showDeleteSelectedModal = false" class="w-full max-w-lg bg-white rounded-2xl shadow-xl">
+        <div class="p-8">
+          <h2 class="text-xl font-bold text-gray-800 mb-4">Hapus Personel Tertentu</h2>
+          <form @submit.prevent="executeDeleteSelected">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Pilih Personel</label>
+            <select id="select-personel-hapus" x-ref="selectPersonel" multiple class="w-full border border-gray-300 rounded-xl px-4 py-2">
+              <% personel.forEach(p => { %>
+                <option value="<%= p.id_personel %>"><%= p.nama_lengkap %> - <%= p.posisi_kerja_utama %></option>
+              <% }) %>
+            </select>
+            <div class="flex justify-end gap-2 mt-6">
+              <button type="button" @click="showDeleteSelectedModal = false" class="px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Batal</button>
+              <button type="submit" class="px-6 py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-700">Hapus Terpilih</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 </div>
 
 <script>
@@ -145,6 +205,8 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('personelController', () => ({
         // --- STATE MANAGEMENT ---
         showEditModal: false,
+        showDeleteAllModal: false,
+        showDeleteSelectedModal: false,
         showBulkAddModal: false,
         showImportModal: false,
         showDeleteConfirmModal: false,
@@ -159,7 +221,7 @@ document.addEventListener('alpine:init', () => {
         init() {
             const params = new URLSearchParams(window.location.search);
             const status = params.get('status');
-
+        
             if (status === 'bulk_sukses' || status === 'tambah_sukses') {
                 this.triggerToast('Personel baru berhasil ditambahkan!');
             } else if (status === 'hapus_sukses') {
@@ -171,7 +233,6 @@ document.addEventListener('alpine:init', () => {
                 this.triggerToast(message);
                 if (gagal > 0) {
                     const pesanGagal = decodeURIComponent(params.get('pesan_gagal') || '');
-                    // Beri sedikit jeda agar notif toast muncul dulu
                     setTimeout(() => {
                         alert(`Gagal menambah ${gagal} personel karena posisi tidak valid:\n\n${pesanGagal.replace(/;/g, '\n')}`);
                     }, 100);
@@ -179,11 +240,21 @@ document.addEventListener('alpine:init', () => {
             } else if (status === 'gagal') {
                 alert('Aksi gagal, terjadi kesalahan di server.');
             }
-
+        
             // Hapus parameter dari URL agar notifikasi tidak muncul lagi saat refresh
             if (status) {
                 window.history.replaceState({}, document.title, '/personel');
             }
+        
+            // Inisialisasi Select2 setelah DOM siap
+            this.$nextTick(() => {
+                if (window.$ && $('#select-personel-hapus').length) {
+                    $('#select-personel-hapus').select2({
+                        width: '100%',
+                        dropdownParent: $('#select-personel-hapus').closest('.fixed')
+                    });
+                }
+            });
         },
 
         // --- METHODS ---
@@ -283,6 +354,60 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        async executeDeleteAll() {
+    if (!confirm('Yakin hapus semua personel?')) return;
+    try {
+        const res = await fetch('/personel/hapus-semua', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            this.showDeleteAllModal = false;
+            this.triggerToast(data.message);
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            alert(data.message || 'Gagal menghapus semua personel.');
+        }
+    } catch (e) {
+        alert('Terjadi kesalahan jaringan.');
+    }
+},
+resetFilter() {
+    // Reset semua input filter ke default
+    document.getElementById('searchNama').value = '';
+    document.getElementById('filterTipe').value = 'semua';
+    document.getElementById('filterPosisi').value = 'semua';
+    document.getElementById('filterShift').value = 'semua';
+    // Panggil handleFilterChange untuk refresh tabel
+    this.handleFilterChange(true);
+},
+
+executeDeleteSelected() {
+    const select = this.$refs.selectPersonel;
+    const selected = Array.from(select.selectedOptions).map(opt => opt.value);
+    if (selected.length === 0) {
+        alert('Pilih minimal satu personel.');
+        return;
+    }
+    if (!confirm('Yakin hapus personel terpilih?')) return;
+    fetch('/personel/hapus-terpilih', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selected })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            this.showDeleteSelectedModal = false;
+            this.triggerToast(data.message);
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            alert(data.message || 'Gagal menghapus personel terpilih.');
+        }
+    })
+    .catch(() => alert('Terjadi kesalahan jaringan.'));
+},
+
+
+
         handlePaginationClick(event) {
             const link = event.target.closest('a.pagination-link');
             if (link) {
@@ -292,6 +417,7 @@ document.addEventListener('alpine:init', () => {
                 this.fetchAndUpdateTable(url);
             }
         }
+        
     }));
 });
 </script>
